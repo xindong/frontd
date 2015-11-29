@@ -2,6 +2,10 @@ package main
 
 import (
 	"bufio"
+	"crypto/aes"
+	"crypto/cipher"
+	"encoding/base64"
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -14,9 +18,14 @@ import (
 
 const (
 	// max open file should at least be
-	_MaxOpenfile uint64 = 128000
+	_MaxOpenfile              uint64 = 1024 * 1024
+	_MaxBackendAddrCacheCount int    = 1024 * 1024
+	_DefaultPort                     = "4043"
+)
 
-	_DefaultPort = "4043"
+var (
+	_SecretPassphase []byte
+	_Salt            []byte
 )
 
 func logError(v ...interface{}) {
@@ -24,8 +33,7 @@ func logError(v ...interface{}) {
 }
 
 var (
-	// TODO: cache with expiration
-	// TODO: flush cache if it's too much
+	// TODO: cache with expiration. maybe?
 	_BackendAddrCacheMutex = new(sync.RWMutex)
 	_BackendAddrCache      map[string]string
 )
@@ -41,6 +49,11 @@ func readBackendAddrCache(key string) (string, bool) {
 func writeBackendAddrCache(key, val string) {
 	_BackendAddrCacheMutex.Lock()
 	defer _BackendAddrCacheMutex.Unlock()
+
+	// flush cache if there is way too many
+	if len(_BackendAddrCache) > _MaxBackendAddrCacheCount {
+		_BackendAddrCache = make(map[string]string)
+	}
 
 	_BackendAddrCache[key] = val
 }
@@ -77,13 +90,43 @@ func TCPServer(l net.Listener) {
 			// Try to check cache
 			addr, ok := readBackendAddrCache(string(line))
 			if !ok {
-				// TODO: Try to decrypt it
+				// Try to decode it (base64)
+				data, err := base64.StdEncoding.DecodeString(str)
+				if err != nil {
+					log.Panicln("error:", err)
+					return
+				}
 
-				// TODO: Write to cache
+				// Try to decrypt it (AES)
+				block, err := aes.NewCipher(_SecretPassphase)
+				if err != nil {
+					log.Panicln("error:", err)
+				}
+				if len(data) < aes.BlockSize {
+					log.Panicln("error:", errors.New("ciphertext too short"))
+				}
+				iv := data[:aes.BlockSize]
+				text = data[aes.BlockSize:]
+				cfb := cipher.NewCFBDecrypter(block, iv)
+				cfb.XORKeyStream(text, text)
 
+				// Check and remove the salt
+				if len(text) < len(_Salt) {
+					log.Panicln("error:", errors.New("salt check failed"))
+				}
+
+				addrLength := len(text) - len(_Salt)
+				if text[addrLength:] != _Salt {
+					log.Panicln("error:", errors.New("salt not match"))
+				}
+
+				addr = text[:addrLength]
+
+				// Write to cache
+				writeBackendAddrCache(line, addr)
 			}
-			// TODO: Build tunnel
 
+			// Build tunnel
 			backend, err := net.Dial("tcp", addr)
 			if err != nil {
 				// handle error
@@ -125,7 +168,7 @@ func main() {
 		syscall.Setrlimit(syscall.RLIMIT_NOFILE, &lim)
 	}
 
-	ln, err := net.Listen("tcp", ":" + _DefaultPort)
+	ln, err := net.Listen("tcp", ":"+_DefaultPort)
 	if err != nil {
 		log.Fatal(err)
 	}
