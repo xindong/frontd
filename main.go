@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"encoding/base64"
@@ -91,7 +92,7 @@ func TCPServer(l net.Listener) {
 			addr, ok := readBackendAddrCache(string(line))
 			if !ok {
 				// Try to decode it (base64)
-				data, err := base64.StdEncoding.DecodeString(str)
+				data, err := base64.StdEncoding.DecodeString(string(line))
 				if err != nil {
 					log.Panicln("error:", err)
 					return
@@ -106,7 +107,7 @@ func TCPServer(l net.Listener) {
 					log.Panicln("error:", errors.New("ciphertext too short"))
 				}
 				iv := data[:aes.BlockSize]
-				text = data[aes.BlockSize:]
+				text := data[aes.BlockSize:]
 				cfb := cipher.NewCFBDecrypter(block, iv)
 				cfb.XORKeyStream(text, text)
 
@@ -116,14 +117,14 @@ func TCPServer(l net.Listener) {
 				}
 
 				addrLength := len(text) - len(_Salt)
-				if text[addrLength:] != _Salt {
+				if !bytes.Equal(text[addrLength:], _Salt) {
 					log.Panicln("error:", errors.New("salt not match"))
 				}
 
-				addr = text[:addrLength]
+				addr = string(text[:addrLength])
 
 				// Write to cache
-				writeBackendAddrCache(line, addr)
+				writeBackendAddrCache(string(line), addr)
 			}
 
 			// Build tunnel
@@ -135,7 +136,7 @@ func TCPServer(l net.Listener) {
 
 			defer backend.Close()
 
-			// TODO: Start transfering data
+			// Start transfering data
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
@@ -168,12 +169,13 @@ func main() {
 		syscall.Setrlimit(syscall.RLIMIT_NOFILE, &lim)
 	}
 
+	_Salt = []byte(os.Getenv("SALT"))
+	_SecretPassphase = []byte(os.Getenv("SECRET"))
+
 	ln, err := net.Listen("tcp", ":"+_DefaultPort)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	go TCPServer(ln)
-
-	// TODO: Wait for exit signal
+	TCPServer(ln)
 }
