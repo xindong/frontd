@@ -19,7 +19,7 @@ import (
 
 const (
 	// max open file should at least be
-	_MaxOpenfile              uint64 = 1024 * 1024
+	_MaxOpenfile              uint64 = 1024 * 1024 * 1024
 	_MaxBackendAddrCacheCount int    = 1024 * 1024
 	_DefaultPort                     = "4043"
 )
@@ -29,12 +29,7 @@ var (
 	_Salt            []byte
 )
 
-func logError(v ...interface{}) {
-	// TODO: log error but with a rate limit and a rate record
-}
-
 var (
-	// TODO: cache with expiration. maybe?
 	_BackendAddrCacheMutex = new(sync.RWMutex)
 	_BackendAddrCache      map[string]string
 )
@@ -74,8 +69,7 @@ func TCPServer(l net.Listener) {
 		go func(c net.Conn) {
 			defer func() {
 				if r := recover(); r != nil {
-					// TODO: log error
-					logError("Recovered in", r, ":", string(debug.Stack()))
+					log.Println("Recovered in", r, ":", string(debug.Stack()))
 				}
 			}()
 			defer c.Close()
@@ -140,8 +134,7 @@ func TCPServer(l net.Listener) {
 			go func() {
 				defer func() {
 					if r := recover(); r != nil {
-						// TODO: log error
-						logError("Recovered in", r, ":", string(debug.Stack()))
+						log.Println("Recovered in", r, ":", string(debug.Stack()))
 					}
 				}()
 
