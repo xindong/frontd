@@ -54,6 +54,19 @@ func writeBackendAddrCache(key, val string) {
 	_BackendAddrCache[key] = val
 }
 
+func pipe(dst io.Writer, src io.Reader, wg *sync.WaitGroup) {
+	defer func() {
+		wg.Done()
+		if r := recover(); r != nil {
+			log.Println("Recovered in", r, ":", string(debug.Stack()))
+		}
+	}()
+	wg.Add(1)
+	_, err := io.Copy(dst, src)
+	// handle error
+	log.Println(err)
+}
+
 // TCPServer is handler for all tcp queries
 func TCPServer(l net.Listener) {
 	defer l.Close()
@@ -127,22 +140,15 @@ func TCPServer(l net.Listener) {
 				// handle error
 				log.Panicln(err)
 			}
-
 			defer backend.Close()
 
 			// Start transfering data
-			go func() {
-				defer func() {
-					if r := recover(); r != nil {
-						log.Println("Recovered in", r, ":", string(debug.Stack()))
-					}
-				}()
+			var wg sync.WaitGroup
 
-				_, err := io.Copy(c, backend)
-				// handle error
-				log.Panicln(err)
-			}()
-			_, err = io.Copy(backend, c)
+			go pipe(c, backend, &wg)
+			go pipe(backend, c, &wg)
+
+			wg.Wait()
 			// handle error
 			log.Panicln(err)
 
