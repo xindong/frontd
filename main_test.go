@@ -8,3 +8,4 @@ package main
 // * test latency
 // * test throughput
 // * test copy-on-write performance BackendAddrCache
+// * test memory footprint

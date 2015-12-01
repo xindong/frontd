@@ -35,12 +35,14 @@ var (
 	_BackendAddrCache      atomic.Value
 )
 
+type backendAddrMap map[string]string
+
 func init() {
-	_BackendAddrCache.Store(make(map[string]string))
+	_BackendAddrCache.Store(make(backendAddrMap))
 }
 
 func readBackendAddrCache(key string) (string, bool) {
-	m1 := _BackendAddrCache.Load().(map[string]string)
+	m1 := _BackendAddrCache.Load().(backendAddrMap)
 
 	val, ok := m1[key]
 	return val, ok
@@ -51,7 +53,7 @@ func writeBackendAddrCache(key, val string) {
 	defer _BackendAddrCacheMutex.Unlock()
 
 	m1 := _BackendAddrCache.Load().(map[string]string)
-	m2 := make(map[string]string) // create a new value
+	m2 := make(backendAddrMap) // create a new value
 
 	// flush cache if there is way too many
 	if len(m1) < _MaxBackendAddrCacheCount {
@@ -65,14 +67,17 @@ func writeBackendAddrCache(key, val string) {
 	_BackendAddrCache.Store(m2) // atomically replace the current object with the new one
 }
 
-func pipe(dst io.Writer, src io.Reader, wg *sync.WaitGroup) {
+// pipe upstream and downstream
+func pipe(dst io.Writer, src io.Reader, quit chan struct{}) {
 	defer func() {
-		wg.Done()
 		if r := recover(); r != nil {
 			log.Println("Recovered in", r, ":", string(debug.Stack()))
 		}
 	}()
-	wg.Add(1)
+	defer func() {
+		quit <- struct{}{}
+	}()
+
 	_, err := io.Copy(dst, src)
 	// handle error
 	log.Println(err)
@@ -98,14 +103,16 @@ func TCPServer(l net.Listener) {
 			}()
 			defer c.Close()
 
-			// TODO: binary mode if first byte is 0x00
+			// TODO: use binary protocol if first byte is 0x00
 
-			rdr := bufio.NewReader(c)
 			// Read first line
+			rdr := bufio.NewReader(c)
 			line, isPrefix, err := rdr.ReadLine()
 			if err != nil || isPrefix {
 				// handle error
-				log.Panicln(err)
+				log.Println(err)
+				c.Write([]byte{0x04})
+				return
 			}
 
 			// Try to check cache
@@ -114,17 +121,22 @@ func TCPServer(l net.Listener) {
 				// Try to decode it (base64)
 				data, err := base64.StdEncoding.DecodeString(string(line))
 				if err != nil {
-					log.Panicln("error:", err)
+					log.Println(err)
+					c.Write([]byte{0x05})
 					return
 				}
 
 				// Try to decrypt it (AES)
 				block, err := aes.NewCipher(_SecretPassphase)
 				if err != nil {
-					log.Panicln("error:", err)
+					log.Println(err)
+					c.Write([]byte{0x06})
+					return
 				}
 				if len(data) < aes.BlockSize {
-					log.Panicln("error:", errors.New("ciphertext too short"))
+					log.Println("error:", errors.New("ciphertext too short"))
+					c.Write([]byte{0x07})
+					return
 				}
 				iv := data[:aes.BlockSize]
 				text := data[aes.BlockSize:]
@@ -133,12 +145,16 @@ func TCPServer(l net.Listener) {
 
 				// Check and remove the salt
 				if len(text) < len(_Salt) {
-					log.Panicln("error:", errors.New("salt check failed"))
+					log.Println("error:", errors.New("salt check failed"))
+					c.Write([]byte{0x08})
+					return
 				}
 
 				addrLength := len(text) - len(_Salt)
 				if !bytes.Equal(text[addrLength:], _Salt) {
-					log.Panicln("error:", errors.New("salt not match"))
+					log.Println("error:", errors.New("salt not match"))
+					c.Write([]byte{0x09})
+					return
 				}
 
 				addr = string(text[:addrLength])
@@ -151,19 +167,27 @@ func TCPServer(l net.Listener) {
 			backend, err := net.Dial("tcp", addr)
 			if err != nil {
 				// handle error
-				log.Panicln(err)
+				switch err := err.(type) {
+				case net.Error:
+					if err.Timeout() {
+						c.Write([]byte{0x01})
+						log.Println(err)
+						return
+					}
+				}
+				log.Println(err)
+				c.Write([]byte{0x02})
+				return
 			}
 			defer backend.Close()
 
 			// Start transfering data
-			var wg sync.WaitGroup
+			quit := make(chan struct{})
 
-			go pipe(c, backend, &wg)
-			go pipe(backend, c, &wg)
+			go pipe(c, backend, quit)
+			go pipe(backend, c, quit)
 
-			wg.Wait()
-			// handle error
-			log.Panicln(err)
+			<-quit
 
 		}(conn)
 	}
