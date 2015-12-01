@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"sync"
+	"sync/atomic"
 	"syscall"
 )
 
@@ -30,15 +31,18 @@ var (
 )
 
 var (
-	_BackendAddrCacheMutex = new(sync.RWMutex)
-	_BackendAddrCache      map[string]string
+	_BackendAddrCacheMutex = new(sync.Mutex)
+	_BackendAddrCache      atomic.Value
 )
 
-func readBackendAddrCache(key string) (string, bool) {
-	_BackendAddrCacheMutex.RLock()
-	defer _BackendAddrCacheMutex.RUnlock()
+func init() {
+	_BackendAddrCache.Store(make(map[string]string))
+}
 
-	val, ok := _BackendAddrCache[key]
+func readBackendAddrCache(key string) (string, bool) {
+	m1 := _BackendAddrCache.Load().(map[string]string)
+
+	val, ok := m1[key]
 	return val, ok
 }
 
@@ -46,12 +50,19 @@ func writeBackendAddrCache(key, val string) {
 	_BackendAddrCacheMutex.Lock()
 	defer _BackendAddrCacheMutex.Unlock()
 
+	m1 := _BackendAddrCache.Load().(map[string]string)
+	m2 := make(map[string]string) // create a new value
+
 	// flush cache if there is way too many
-	if len(_BackendAddrCache) > _MaxBackendAddrCacheCount {
-		_BackendAddrCache = make(map[string]string)
+	if len(m1) < _MaxBackendAddrCacheCount {
+		// copy-on-write
+		for k, v := range m1 {
+			m2[k] = v // copy all data from the current object to the new one
+		}
 	}
 
-	_BackendAddrCache[key] = val
+	m2[key] = val
+	_BackendAddrCache.Store(m2) // atomically replace the current object with the new one
 }
 
 func pipe(dst io.Writer, src io.Reader, wg *sync.WaitGroup) {
@@ -86,6 +97,8 @@ func TCPServer(l net.Listener) {
 				}
 			}()
 			defer c.Close()
+
+			// TODO: binary mode if first byte is 0x00
 
 			rdr := bufio.NewReader(c)
 			// Read first line
