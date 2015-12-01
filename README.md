@@ -46,25 +46,21 @@
 | 0x01   | 后端服务器超时 |
 | 0x02   | 无法连接后端服务器 |
 | 0x03   | 后端服务器超时 |
-| 0x04   | 后端地址密文（文本模式）解析失败 |
-| 0x05   | 后端地址密文（文本模式）Base64解码失败 |
-| 0x06   | 后端地址解密失败：Passphase不可用 |
-| 0x07   | 后端地址解密失败：AES密文长度不足 |
-| 0x08   | 后端地址解密失败：SALT长度不符 |
-| 0x09   | 后端地址解密失败：SALT不匹配 |
-| 0x05   | 不被允许的IP地址 |
+| 0x04   | 获取后端地址密文失败 |
+| 0x06   | 后端地址解密失败 |
+| 0x10   | 不被允许的IP地址 |
 
 
 ### 接入方式
 
-1. 生成 Passphrase 和 Salt 。并保存在安全的文档中。
-	 * 可以使用在线生成 http://passwordsgenerator.net/
-2. 使用上述 Secret Passphrase 和 Salt 部署服务端
+1. 生成 Passphrase 。并保存在安全的文档中。
+	 * 可以使用在线生成 https://lastpass.com/generatepassword.php
+2. 使用上述 Secret Passphrase 部署服务端
 3. 使用 AES 算法加密文本格式的 后端地址+slat，生成 base64 编码的密文。 可以使用在线工具如： http://tool.oschina.net/encrypt
-	* 例：当后端地址为 `172.10.0.10:8901` 时，如果 Passphrase=12345 Salt=ABCDE 时，应当加密的明文是 `172.10.0.10:8901ABCDE`
-	密文结果应为 `U2FsdGVkX1+i4XT2V8gtTyIB09rW9jyDEGMRVaYG85elu5Y/Hnp0O2NRycDC+Z4o`
+	* 例：当后端地址为 `172.10.0.10:8901` 时，如果 Passphrase=12345 时，应当加密的明文是 `172.10.0.10:8901ABCDE`
+	密文结果应类似 `U2FsdGVkX1889PTrVZxNSGNzl1LrrXoOyTogdbze9xebMy0N2710l3p3hjWhik1r`
 4. 客户端 建立连接后，将后端地址的密文文本加一个换行符发送给网关。建立连接。
-	* 根据前例： 应该发送 `U2FsdGVkX1+i4XT2V8gtTyIB09rW9jyDEGMRVaYG85elu5Y/Hnp0O2NRycDC+Z4o\n`
+	* 根据前例： 应该发送 `U2FsdGVkX1889PTrVZxNSGNzl1LrrXoOyTogdbze9xebMy0N2710l3p3hjWhik1r\n`
 
 ### 测试数据
 
@@ -81,7 +77,7 @@ _TODO_
 折中意味着牺牲。因此，我们并不反对项目组在本代码基础上进行优化，但不建议弱化安全性的部分。
 
 
-## Developing
+### Developing
 
 Pull request must pass:
 
@@ -89,3 +85,9 @@ Pull request must pass:
 * [go vet](https://godoc.org/golang.org/x/tools/cmd/vet)
 * [gofmt](https://golang.org/cmd/gofmt)
 * [go test](https://golang.org/cmd/go/#hdr-Test_packages)
+
+### TODO
+
+* 支持 binary protocol
+* 支持更多加密解密算法
+* 支持 consul

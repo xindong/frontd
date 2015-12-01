@@ -2,11 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
-	"crypto/aes"
-	"crypto/cipher"
-	"encoding/base64"
-	"errors"
 	"io"
 	"log"
 	"net"
@@ -16,18 +11,19 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+
+	"github.com/Luzifer/go-openssl"
 )
 
 const (
 	// max open file should at least be
 	_MaxOpenfile              uint64 = 1024 * 1024 * 1024
 	_MaxBackendAddrCacheCount int    = 1024 * 1024
-	_DefaultPort                     = "4043"
+	_DefaultPort              string = "4043"
 )
 
 var (
-	_SecretPassphase []byte
-	_Salt            []byte
+	_SecretPassphase string
 )
 
 var (
@@ -118,50 +114,20 @@ func TCPServer(l net.Listener) {
 			// Try to check cache
 			addr, ok := readBackendAddrCache(string(line))
 			if !ok {
-				// Try to decode it (base64)
-				data, err := base64.StdEncoding.DecodeString(string(line))
-				if err != nil {
-					log.Println(err)
-					c.Write([]byte{0x05})
-					return
-				}
-
 				// Try to decrypt it (AES)
-				block, err := aes.NewCipher(_SecretPassphase)
+				o := openssl.New()
+				addr, err := o.DecryptString(string(_SecretPassphase), string(line))
 				if err != nil {
 					log.Println(err)
 					c.Write([]byte{0x06})
 					return
 				}
-				if len(data) < aes.BlockSize {
-					log.Println("error:", errors.New("ciphertext too short"))
-					c.Write([]byte{0x07})
-					return
-				}
-				iv := data[:aes.BlockSize]
-				text := data[aes.BlockSize:]
-				cfb := cipher.NewCFBDecrypter(block, iv)
-				cfb.XORKeyStream(text, text)
-
-				// Check and remove the salt
-				if len(text) < len(_Salt) {
-					log.Println("error:", errors.New("salt check failed"))
-					c.Write([]byte{0x08})
-					return
-				}
-
-				addrLength := len(text) - len(_Salt)
-				if !bytes.Equal(text[addrLength:], _Salt) {
-					log.Println("error:", errors.New("salt not match"))
-					c.Write([]byte{0x09})
-					return
-				}
-
-				addr = string(text[:addrLength])
 
 				// Write to cache
-				writeBackendAddrCache(string(line), addr)
+				writeBackendAddrCache(string(line), string(addr))
 			}
+
+			// TODO: check if addr is allowed
 
 			// Build tunnel
 			backend, err := net.Dial("tcp", addr)
@@ -205,8 +171,7 @@ func main() {
 		syscall.Setrlimit(syscall.RLIMIT_NOFILE, &lim)
 	}
 
-	_Salt = []byte(os.Getenv("SALT"))
-	_SecretPassphase = []byte(os.Getenv("SECRET"))
+	_SecretPassphase = os.Getenv("SECRET")
 
 	ln, err := net.Listen("tcp", ":"+_DefaultPort)
 	if err != nil {
