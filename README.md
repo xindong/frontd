@@ -20,10 +20,10 @@
 
 ### 注意事项
 
-切勿将 Secret Passphrase 和 Slat 写入客户端代码！
+切勿将 Secret Passphrase 写入客户端代码！
 
-* Secret Passphrase 和 Slat 用来生成加密的地址信息
-* 加密后的地址信息可以写入客户端或通过其他方式发送给客户端，但不要将 Secret Passphrase 和 Slat 写入客户端代码！
+* Secret Passphrase 用来生成加密的地址信息
+* 加密后的地址信息可以写入客户端或通过其他方式发送给客户端，但不要将 Secret Passphrase 写入客户端代码！
 
 ### 编译
 
@@ -32,7 +32,7 @@
 
 ### 部署服务端
 
-`docker run -e "SECRET=SomePassphrase" -e "SLAT=Blahblah" tomasen/frontd /go/bin/frontd`
+`docker run -e "SECRET=SomePassphrase" tomasen/frontd /go/bin/frontd`
 
 
 ### 通讯协议
@@ -56,11 +56,11 @@
 1. 生成 Passphrase 。并保存在安全的文档中。
 	 * 可以使用在线生成 https://lastpass.com/generatepassword.php
 2. 使用上述 Secret Passphrase 部署服务端
-3. 使用 AES 算法加密文本格式的 后端地址+slat，生成 base64 编码的密文。 可以使用在线工具如： http://tool.oschina.net/encrypt
-	* 例：当后端地址为 `172.10.0.10:8901` 时，如果 Passphrase=12345 时，应当加密的明文是 `172.10.0.10:8901ABCDE`
-	密文结果应类似 `U2FsdGVkX1889PTrVZxNSGNzl1LrrXoOyTogdbze9xebMy0N2710l3p3hjWhik1r`
+3. 使用 AES 算法加密文本格式的 后端地址 base64 编码的密文。 可以使用在线工具如： http://tool.oschina.net/encrypt
+	* 例：当后端地址为 `127.0.0.1:62863` 时，如果 Passphrase=p0S8rX680*48
+	密文结果应类似 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=`
 4. 客户端 建立连接后，将后端地址的密文文本加一个换行符发送给网关。建立连接。
-	* 根据前例： 应该发送 `U2FsdGVkX1889PTrVZxNSGNzl1LrrXoOyTogdbze9xebMy0N2710l3p3hjWhik1r\n`
+	* 根据前例： 应该发送 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=\n`
 
 ### 测试数据
 
