@@ -48,7 +48,7 @@ func writeBackendAddrCache(key, val string) {
 	_BackendAddrCacheMutex.Lock()
 	defer _BackendAddrCacheMutex.Unlock()
 
-	m1 := _BackendAddrCache.Load().(map[string]string)
+	m1 := _BackendAddrCache.Load().(backendAddrMap)
 	m2 := make(backendAddrMap) // create a new value
 
 	// flush cache if there is way too many
@@ -75,8 +75,10 @@ func pipe(dst io.Writer, src io.Reader, quit chan struct{}) {
 	}()
 
 	_, err := io.Copy(dst, src)
-	// handle error
-	log.Println(err)
+	if err != nil {
+		// handle error
+		log.Println(err)
+	}
 }
 
 // TCPServer is handler for all tcp queries
@@ -116,13 +118,13 @@ func TCPServer(l net.Listener) {
 			if !ok {
 				// Try to decrypt it (AES)
 				o := openssl.New()
-				addr, err := o.DecryptString(string(_SecretPassphase), string(line))
+				plaintext, err := o.DecryptString(string(_SecretPassphase), string(line))
 				if err != nil {
-					log.Println(err)
+					log.Println("DecryptString", string(line), err)
 					c.Write([]byte{0x06})
 					return
 				}
-
+				addr = string(plaintext)
 				// Write to cache
 				writeBackendAddrCache(string(line), string(addr))
 			}
