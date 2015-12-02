@@ -1,5 +1,5 @@
 [![Build Status](https://travis-ci.org/xindong/frontd.svg?branch=master)](https://travis-ci.org/xindong/frontd)
-[![Coverage Status](https://coveralls.io/xindong/frontd/main.go/badge.png)](https://coveralls.io/r/xindong/frontd/main.go)
+[![Coverage Status](https://coveralls.io/repos/xindong/frontd/badge.svg?branch=master&service=github)](https://coveralls.io/github/xindong/frontd?branch=master)
 
 ### 简介
 
