@@ -14,8 +14,8 @@
 
 * 高性能、高并发
 * 无状态，可水平扩展
-* 安全（无明文后端地址端口）
-	* 后端地址端口使用AES加密
+* 安全（无明文后端地址及端口信息）
+	* 后端地址端口使用AES（aes-256-cbc）加密
 * 免配置免维护
 	* 无论后端地址端口发生什么变化，本网关并不需要重新配置或维护
 * 可使用容器部署 [官方镜像 https://hub.docker.com/r/tomasen/frontd/ ](https://hub.docker.com/r/tomasen/frontd/)
