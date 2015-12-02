@@ -136,7 +136,7 @@ func TestEchoServer(t *testing.T) {
 	}
 }
 
-func TestProtocolDecrypt(*testing.T) {
+func testProtocol(cipherAddr []byte) {
 	// * test decryption
 	conn, err := net.Dial("tcp", "127.0.0.1:"+_DefaultPort)
 	if err != nil {
@@ -144,12 +144,7 @@ func TestProtocolDecrypt(*testing.T) {
 	}
 	defer conn.Close()
 
-	b, err := encryptText(_echoServerAddr, _secret)
-	if err != nil {
-		panic(err)
-	}
-
-	_, err = conn.Write(b)
+	_, err = conn.Write(cipherAddr)
 	if err != nil {
 		panic(err)
 	}
@@ -162,6 +157,14 @@ func TestProtocolDecrypt(*testing.T) {
 	for i := 0; i < 5; i++ {
 		testEchoRound(conn)
 	}
+}
+
+func TestProtocolDecrypt(*testing.T) {
+	b, err := encryptText(_echoServerAddr, _secret)
+	if err != nil {
+		panic(err)
+	}
+	testProtocol(b)
 }
 
 // TODO: test decryption with extra bytes in packet and check data
@@ -198,6 +201,17 @@ func BenchmarkEcho(b *testing.B) {
 }
 
 func BenchmarkLatency(b *testing.B) {
+	cipherAddr, err := encryptText(_echoServerAddr, _secret)
+	if err != nil {
+		panic(err)
+	}
+
+	for i := 0; i < b.N; i++ {
+		testProtocol(cipherAddr)
+	}
+}
+
+func BenchmarkNoHitLatency(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		TestProtocolDecrypt(&testing.T{})
 	}
