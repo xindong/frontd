@@ -100,6 +100,7 @@ Pull request must pass:
 
 ### TODO
 
+* 支持 HTTP 反向代理 （使用 Header `X-AskForOrigin`）
 * 支持 binary protocol
 * 支持更多加密解密算法
 * 支持 consul
