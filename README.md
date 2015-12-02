@@ -57,9 +57,10 @@
 1. 生成 Passphrase 。并保存在安全的文档中。
 	 * 可以使用在线生成 https://lastpass.com/generatepassword.php
 2. 使用上述 Secret Passphrase 部署服务端
-3. 使用 AES 算法加密文本格式的 后端地址 base64 编码的密文。 可以使用在线工具如： http://tool.oschina.net/encrypt
+3. 使用 AES 算法加密文本格式的 后端地址 base64 编码的密文。 可以使用在线工具如： http://tool.oschina.net/encrypt 。也可以使用 `openssl` 命令行如 `echo -n "127.0.0.1:62863" | openssl enc -e -aes-256-cbc -a -salt -k "p0S8rX680*48"`
 	* 例：当后端地址为 `127.0.0.1:62863` 时，如果 Passphrase=p0S8rX680*48
-	密文结果应类似 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=`
+	密文结果应类似 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=` <br/>
+	_注：上述方式都会使用随机Salt——这也是建议的方式。其结果是每次加密得出的密文结果并不一样，但并不会影响解密_
 4. 客户端 建立连接后，将后端地址的密文文本加一个换行符发送给网关。建立连接。
 	* 根据前例： 应该发送 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=\n`
 
