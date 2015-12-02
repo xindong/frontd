@@ -1,5 +1,5 @@
 FROM golang:latest
-MAINTAINER Tomasen "https://github.com/Tomasen"
+MAINTAINER Tomasen "https://github.com/tomasen"
 
 # Copy the local package files to the container's workspace.
 ADD . /go/src/github.com/xindong/frontd
