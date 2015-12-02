@@ -20,6 +20,7 @@ const (
 	_MaxOpenfile              uint64 = 1024 * 1024 * 1024
 	_MaxBackendAddrCacheCount int    = 1024 * 1024
 	_DefaultPort              string = "4043"
+	_MTU                             = 1500
 )
 
 var (
@@ -64,21 +65,23 @@ func writeBackendAddrCache(key, val string) {
 }
 
 // pipe upstream and downstream
-func pipe(dst io.Writer, src io.Reader, quit chan struct{}) {
+func pipe(dst io.Writer, src io.Reader) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Println("Recovered in", r, ":", string(debug.Stack()))
 		}
 	}()
-	defer func() {
-		quit <- struct{}{}
-	}()
 
 	_, err := io.Copy(dst, src)
-	if err != nil {
-		// handle error
-		log.Println(err)
+
+	switch err {
+	case io.EOF:
+		err = nil
+		return
+	case nil:
+		return
 	}
+	// log.Println("pipe:", n, err)
 }
 
 // TCPServer is handler for all tcp queries
@@ -101,6 +104,7 @@ func TCPServer(l net.Listener) {
 			}()
 			defer c.Close()
 
+			// TODO: get rid of bufio.Reader
 			// TODO: use binary protocol if first byte is 0x00
 
 			// Read first line
@@ -120,7 +124,6 @@ func TCPServer(l net.Listener) {
 				o := openssl.New()
 				plaintext, err := o.DecryptString(string(_SecretPassphase), string(line))
 				if err != nil {
-					log.Println("DecryptString", string(line), err)
 					c.Write([]byte{0x06})
 					return
 				}
@@ -150,12 +153,8 @@ func TCPServer(l net.Listener) {
 			defer backend.Close()
 
 			// Start transfering data
-			quit := make(chan struct{})
-
-			go pipe(c, backend, quit)
-			go pipe(backend, c, quit)
-
-			<-quit
+			go pipe(c, backend)
+			pipe(backend, rdr)
 
 		}(conn)
 	}

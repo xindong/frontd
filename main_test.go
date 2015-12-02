@@ -43,14 +43,19 @@ func servEcho() {
 			defer c.Close()
 
 			_, err := io.Copy(c, c)
-			if err != nil {
-				panic(err)
+			switch err {
+			case io.EOF:
+				err = nil
+				return
+			case nil:
+				return
 			}
+			panic(err)
 		}(c)
 	}
 }
 
-func init() {
+func TestMain(m *testing.M) {
 	// start echo server
 	go servEcho()
 
@@ -60,6 +65,10 @@ func init() {
 	go main()
 
 	rand.Seed(time.Now().UnixNano())
+
+	// TODO: better way to wait for server to start
+	time.Sleep(time.Second)
+	os.Exit(m.Run())
 }
 
 func TestTextDecryptAES(t *testing.T) {
@@ -94,15 +103,20 @@ func randomBytes(n int) []byte {
 func testEchoRound(conn net.Conn) {
 	conn.SetDeadline(time.Now().Add(time.Second * 10))
 
-	n := rand.Int() % 2048
+	n := rand.Int()%2048 + 10
 	out := randomBytes(n)
-	conn.Write(out)
+	n0, err := conn.Write(out)
+	if err != nil {
+		panic(err)
+	}
 
 	rcv := make([]byte, n)
-	conn.Read(rcv)
-
-	if !bytes.Equal(out, rcv) {
-		fmt.Println("out: ", len(out), "in:", len(rcv))
+	n1, err := io.ReadFull(conn, rcv)
+	if err != nil && err != io.EOF {
+		panic(err)
+	}
+	if !bytes.Equal(out[:n0], rcv[:n1]) {
+		fmt.Println("out: ", n0, "in:", n1)
 
 		fmt.Println("out: ", hex.EncodeToString(out), "in:", hex.EncodeToString(rcv))
 		panic(errors.New("echo server reply is not match"))
@@ -116,11 +130,13 @@ func TestEchoServer(t *testing.T) {
 	}
 	defer conn.Close()
 
-	testEchoRound(conn)
+	n := rand.Int() % 10
+	for i := 0; i < n; i++ {
+		testEchoRound(conn)
+	}
 }
 
 func TestProtocolDecrypt(*testing.T) {
-
 	// * test decryption
 	conn, err := net.Dial("tcp", "127.0.0.1:"+_DefaultPort)
 	if err != nil {
@@ -133,17 +149,60 @@ func TestProtocolDecrypt(*testing.T) {
 		panic(err)
 	}
 
-	conn.Write(b)
-	conn.Write([]byte("\n"))
+	_, err = conn.Write(b)
+	if err != nil {
+		panic(err)
+	}
 
-	testEchoRound(conn)
+	_, err = conn.Write([]byte("\n"))
+	if err != nil {
+		panic(err)
+	}
+
+	for i := 0; i < 5; i++ {
+		testEchoRound(conn)
+	}
 }
 
 // TODO: test decryption with extra bytes in packet and check data
 
 // TODO: test decryption with seperated packet simulate loss connection and check data
 
-// * benchmark 100, 1000 connect with 1k 10k 100k 1m data
+// TODO: benchmark 100, 1000 connect with 1k 10k 100k 1m data
+
+func BenchmarkEncryptText(b *testing.B) {
+	s1 := string(randomBytes(255))
+	s2 := string(randomBytes(32))
+	for i := 0; i < b.N; i++ {
+		_, err := encryptText(s1, s2)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func BenchmarkDecryptText(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		o := openssl.New()
+		_, err := o.DecryptString(_secret, _expectAESCiphertext)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func BenchmarkEcho(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		TestEchoServer(&testing.T{})
+	}
+}
+
+func BenchmarkLatency(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		TestProtocolDecrypt(&testing.T{})
+	}
+}
+
 // with echo server with random hanging
 // * benchmark latency
 // * benchmark throughput
