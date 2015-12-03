@@ -12,7 +12,7 @@ RUN go install
 RUN rm -rf /go/src/*
 WORKDIR /go/bin
 
-# Run the httpdns command by default when the container starts.
+# Run the frontd command by default when the container starts.
 ENTRYPOINT /go/bin/frontd
 
 EXPOSE 4043
