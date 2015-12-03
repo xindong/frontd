@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/xindong/frontd.svg?branch=master)](https://travis-ci.org/xindong/frontd)
+[![Build Status](https://travis-ci.org/xindong/frontd.svg?branch=master)](https://travis-ci.org/xindong/frontd) 
 [![Coverage Status](https://coveralls.io/repos/xindong/frontd/badge.svg?branch=master&service=github)](https://coveralls.io/github/xindong/frontd?branch=master)
 
 ### 简介
@@ -12,19 +12,20 @@
 
 ### 主要特点
 
-* 高性能
-* 无状态
-* 安全（无明文后端地址端口）
-	* 后端地址端口使用AES加密
+* 高性能、高并发
+* 无状态，可水平扩展
+* 安全（无明文后端地址及端口信息）
+	* 后端地址端口使用AES（aes-256-cbc）加密
 * 免配置免维护
 	* 无论后端地址端口发生什么变化，本网关并不需要重新配置或维护
+* 可使用容器部署 [官方镜像 https://hub.docker.com/r/tomasen/frontd/ ](https://hub.docker.com/r/tomasen/frontd/)
 
 ### 注意事项
 
 切勿将 Secret Passphrase 写入客户端代码！
 
 * Secret Passphrase 用来生成加密的地址信息
-* 加密后的地址信息可以写入客户端或通过其他方式发送给客户端，但不要将 Secret Passphrase 写入客户端代码！
+* 加密后的地址信息密文可以存放在客户端或通过其他方式发送给客户端，但切忌将 Secret Passphrase 写入客户端代码！
 
 ### 编译
 
@@ -57,10 +58,11 @@
 1. 生成 Passphrase 。并保存在安全的文档中。
 	 * 可以使用在线生成 https://lastpass.com/generatepassword.php
 2. 使用上述 Secret Passphrase 部署服务端
-3. 使用 AES 算法加密文本格式的 后端地址 base64 编码的密文。 可以使用在线工具如： http://tool.oschina.net/encrypt
-	* 例：当后端地址为 `127.0.0.1:62863` 时，如果 Passphrase=p0S8rX680*48
-	密文结果应类似 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=`
-4. 客户端 建立连接后，将后端地址的密文文本加一个换行符发送给网关。建立连接。
+3. 使用 AES 算法加密文本格式的后端地址，生成 base64 编码的密文。可以使用在线工具如 [http://tool.oschina.net/encrypt] 生成密文 。也可以使用 `openssl` 命令行如 `echo -n "127.0.0.1:62863" | openssl enc -e -aes-256-cbc -a -salt -k "p0S8rX680*48"` 生成密文。
+	* 例：当后端地址为 `127.0.0.1:62863` 时，如 Passphrase=p0S8rX680*48 ，
+	密文结果应类似 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=` <br/>
+	_注：上述方式都会使用随机Salt——这也是建议的方式。其结果是每次加密得出的密文结果并不一样，但并不会影响解密_
+4. 客户端与网关建立连接后，将后端地址的密文文本加一个换行符发送给网关。建立连接。
 	* 根据前例： 应该发送 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=\n`
 
 ### 测试数据
@@ -88,7 +90,6 @@
 
 折中意味着牺牲。因此，我们并不反对项目组在本代码基础上进行优化，但不建议弱化安全性的部分。
 
-
 ### Developing
 
 Pull request must pass:
@@ -100,6 +101,7 @@ Pull request must pass:
 
 ### TODO
 
+* 支持 HTTP 反向代理 （使用 Header `X-AskForOrigin`）
 * 支持 binary protocol
 * 支持更多加密解密算法
-* 支持 consul
+* 支持 consul 服务发现
