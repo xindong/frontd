@@ -9,29 +9,27 @@ import (
 	"math/rand"
 	"net"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/Luzifer/go-openssl"
 	"github.com/xindong/frontd/aes256cbc"
 )
 
-const (
-	_echoServerAddr      = "127.0.0.1:62863"
-	_expectAESCiphertext = "U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0="
-	_secret              = "p0S8rX680*48"
+var (
+	_echoServerAddr      = []byte("127.0.0.1:62863")
+	_expectAESCiphertext = []byte("U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=")
+	_secret              = []byte("p0S8rX680*48")
 )
 
 func servEcho() {
-	l, err := net.Listen("tcp", _echoServerAddr)
+	l, err := net.Listen("tcp", string(_echoServerAddr))
 	if err != nil {
 		fmt.Println("Error listening:", err.Error())
 		os.Exit(1)
 	}
 	// Close the listener when the application closes.
 	defer l.Close()
-	fmt.Println("Listening on " + _echoServerAddr)
+	fmt.Println("Listening on " + string(_echoServerAddr))
 	for {
 		// Listen for an incoming connection.
 		c, err := l.Accept()
@@ -61,7 +59,7 @@ func TestMain(m *testing.M) {
 	go servEcho()
 
 	// start listen
-	os.Setenv("SECRET", _secret)
+	os.Setenv("SECRET", string(_secret))
 
 	go main()
 
@@ -79,12 +77,12 @@ func TestTextDecryptAES(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	if strings.Compare(string(dec), _echoServerAddr) != 0 {
+	if !bytes.Equal(dec, _echoServerAddr) {
 		panic(errors.New("not match"))
 	}
 }
 
-func encryptText(plaintext, passphrase string) ([]byte, error) {
+func encryptText(plaintext, passphrase []byte) ([]byte, error) {
 	o := aes256cbc.New()
 
 	return o.EncryptString(passphrase, plaintext)
@@ -125,7 +123,7 @@ func testEchoRound(conn net.Conn) {
 }
 
 func TestEchoServer(t *testing.T) {
-	conn, err := net.Dial("tcp", _echoServerAddr)
+	conn, err := net.Dial("tcp", string(_echoServerAddr))
 	if err != nil {
 		panic(err)
 	}
@@ -175,8 +173,8 @@ func TestProtocolDecrypt(*testing.T) {
 // TODO: benchmark 100, 1000 connect with 1k 10k 100k 1m data
 
 func BenchmarkEncryptText(b *testing.B) {
-	s1 := string(randomBytes(255))
-	s2 := string(randomBytes(32))
+	s1 := randomBytes(255)
+	s2 := randomBytes(32)
 	for i := 0; i < b.N; i++ {
 		_, err := encryptText(s1, s2)
 		if err != nil {
@@ -187,7 +185,7 @@ func BenchmarkEncryptText(b *testing.B) {
 
 func BenchmarkDecryptText(b *testing.B) {
 	for i := 0; i < b.N; i++ {
-		o := openssl.New()
+		o := aes256cbc.New()
 		_, err := o.DecryptString(_secret, _expectAESCiphertext)
 		if err != nil {
 			panic(err)
