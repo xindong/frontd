@@ -34,7 +34,12 @@
 
 ### 部署服务端
 
-`docker run -e "SECRET=SomePassphrase" tomasen/frontd /go/bin/frontd`
+1. 通过环境变量 `SECRET` 设置解密用的秘钥
+2. 可以使用官方 Docker 镜像 `tomasen/frontd`
+
+	启动命令范例如下：
+
+	`docker run -e "SECRET=SomePassphrase" tomasen/frontd /go/bin/frontd`
 
 
 ### 通讯协议
@@ -64,7 +69,7 @@
 4. 客户端与网关建立连接后，将后端地址的密文文本加一个换行符发送给网关。建立连接。
 	* 根据前例： 应该发送 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=\n`
 
-### 测试数据
+### Benchmark 基准测试数据指标
 
 * 测试环境
 
@@ -87,7 +92,15 @@ BenchmarkNoHitLatency-4	    1000	   2205162 ns/op
 
 	`go test -bench .`
 
-### 后记
+### Profiling
+
+如果启动时通过环境变量 `PPROF_PORT`，就会在该端口启动 pprof 。使用方法可以参考 [https://golang.org/pkg/net/http/pprof/]
+
+	启动命令范例如下：
+
+	`docker run -e "SECRET=SomePassphrase" -e "PPROF_PORT=4044" -p 4044 tomasen/frontd /go/bin/frontd`
+
+### 设计说明
 
 `frontd` 在设计上是安全性+性能+易于接入+易于维护的折中方案。其中：
 

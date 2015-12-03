@@ -5,9 +5,11 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -20,7 +22,7 @@ const (
 	// max open file should at least be
 	_MaxOpenfile              = uint64(1024 * 1024 * 1024)
 	_MaxBackendAddrCacheCount = 1024 * 1024
-	_DefaultPort              = "4043"
+	_DefaultPort              = 4043
 	_MTU                      = 1500
 )
 
@@ -94,11 +96,18 @@ func main() {
 
 	_SecretPassphase = []byte(os.Getenv("SECRET"))
 
+	pprofPort, err := strconv.Atoi(os.Getenv("PPROF_PORT"))
+	if err == nil && pprofPort > 0 && pprofPort <= 65535 {
+		go func() {
+			log.Println(http.ListenAndServe(":"+strconv.Itoa(pprofPort), nil))
+		}()
+	}
+
 	listenAndServe()
 }
 
 func listenAndServe() {
-	l, err := net.Listen("tcp", ":"+_DefaultPort)
+	l, err := net.Listen("tcp", ":"+strconv.Itoa(_DefaultPort))
 	if err != nil {
 		log.Fatal(err)
 	}
