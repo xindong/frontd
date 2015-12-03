@@ -20,6 +20,7 @@ var (
 	_echoServerAddr      = []byte("127.0.0.1:62863")
 	_expectAESCiphertext = []byte("U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=")
 	_secret              = []byte("p0S8rX680*48")
+	_defaultFrontdAddr   = "127.0.0.1:" + strconv.Itoa(_DefaultPort)
 )
 
 func servEcho() {
@@ -138,7 +139,7 @@ func TestEchoServer(t *testing.T) {
 
 func testProtocol(cipherAddr []byte) {
 	// * test decryption
-	conn, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(_DefaultPort))
+	conn, err := net.Dial("tcp", _defaultFrontdAddr)
 	if err != nil {
 		panic(err)
 	}
