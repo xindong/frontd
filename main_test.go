@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"net"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -137,7 +138,7 @@ func TestEchoServer(t *testing.T) {
 
 func testProtocol(cipherAddr []byte) {
 	// * test decryption
-	conn, err := net.Dial("tcp", "127.0.0.1:"+_DefaultPort)
+	conn, err := net.Dial("tcp", "127.0.0.1:"+strconv.Itoa(_DefaultPort))
 	if err != nil {
 		panic(err)
 	}
