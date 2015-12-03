@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jbenet/go-reuseport"
 	"github.com/xindong/frontd/aes256cbc"
+	"github.com/xindong/frontd/reuse"
 )
 
 var (
@@ -26,11 +26,19 @@ var (
 )
 
 var (
+	// use -reuse with go test enable SO_REUSEPORT
+	// go test -parallel 6553 -benchtime 60s -bench BenchmarkEchoParallel -reuse
+	// but it seems will not working with single backend addr because of
+	// http://stackoverflow.com/questions/14388706/socket-options-so-reuseaddr-and-so-reuseport-how-do-they-differ-do-they-mean-t
 	reuseTest = flag.Bool("reuse", false, "test reuseport dialer")
 )
 
 func TestMain(m *testing.M) {
 	flag.Parse()
+	if *reuseTest {
+		fmt.Println("testing SO_REUSEPORT")
+	}
+
 	// start echo server
 	go servEcho()
 
