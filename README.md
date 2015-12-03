@@ -72,8 +72,16 @@
 
 * 测试数据
 
- 	当地址缓存命中时（正常情形） `frontd` 为后端带来的额外延迟为 0.839ms <br/>
-	当地址缓存完全无命时（极端情况）  `frontd` 为后端带来的额外延迟为 1.223ms
+ 	当地址缓存命中时（正常情形） `frontd` 为后端带来的额外延迟为 0.57ms <br/>
+	当地址缓存完全无命时（极端情况）  `frontd` 为后端带来的额外延迟为 1.05ms
+
+	```bash
+BenchmarkEncryptText-4 	  200000	      7345 ns/op
+BenchmarkDecryptText-4 	  500000	      4279 ns/op
+BenchmarkEcho-4        	    1000	   1151079 ns/op
+BenchmarkLatency-4     	    1000	   1727021 ns/op
+BenchmarkNoHitLatency-4	    1000	   2205162 ns/op
+	```
 
 * 测试方法
 
