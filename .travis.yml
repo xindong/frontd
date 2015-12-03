@@ -21,3 +21,4 @@ script:
 
 after_script:
     - $HOME/gopath/bin/goveralls -coverprofile=profile.cov -service=travis-ci
+    - go test -bench .
