@@ -94,10 +94,10 @@ func main() {
 
 	_SecretPassphase = os.Getenv("SECRET")
 
-	ListenAndServe()
+	listenAndServe()
 }
 
-func ListenAndServe() {
+func listenAndServe() {
 	l, err := net.Listen("tcp", ":"+_DefaultPort)
 	if err != nil {
 		log.Fatal(err)
