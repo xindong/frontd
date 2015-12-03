@@ -143,8 +143,9 @@ func handleConn(c net.Conn) {
 		rdr.Reset(c)
 	} else {
 		rdr = bufio.NewReader(c)
-		defer _BufioReaderPool.Put(rdr)
 	}
+	defer _BufioReaderPool.Put(rdr)
+
 	line, isPrefix, err := rdr.ReadLine()
 	if err != nil || isPrefix {
 		log.Println(err)
