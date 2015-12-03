@@ -31,8 +31,9 @@ func New() *OpenSSL {
 	}
 }
 
-// DecryptString decrypts a string that was encrypted using OpenSSL and AES-256-CBC
-func (o *OpenSSL) DecryptString(passphrase, encryptedBase64String []byte) ([]byte, error) {
+// Decrypt a string that was encrypted using OpenSSL and AES-256-CBC
+// also compatible with crptojs
+func (o *OpenSSL) Decrypt(passphrase, encryptedBase64String []byte) ([]byte, error) {
 	dbuf := make([]byte, base64.StdEncoding.DecodedLen(len(encryptedBase64String)))
 	n, err := base64.StdEncoding.Decode(dbuf, encryptedBase64String)
 	if err != nil {
@@ -67,9 +68,10 @@ func (o *OpenSSL) decrypt(key, iv, data []byte) ([]byte, error) {
 	return out, nil
 }
 
-// EncryptString encrypts a string in a manner compatible to OpenSSL encryption
+// Encrypt a string in a manner compatible to OpenSSL encryption
 // functions using AES-256-CBC as encryption algorithm
-func (o *OpenSSL) EncryptString(passphrase, plaintextString []byte) ([]byte, error) {
+// also compatible with crptojs from https://code.google.com/p/crypto-js/
+func (o *OpenSSL) Encrypt(passphrase, plaintextString []byte) ([]byte, error) {
 	salt := make([]byte, 8) // Generate an 8 byte salt
 	_, err := io.ReadFull(rand.Reader, salt)
 	if err != nil {

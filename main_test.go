@@ -73,7 +73,7 @@ func TestMain(m *testing.M) {
 func TestTextDecryptAES(t *testing.T) {
 	o := aes256cbc.New()
 
-	dec, err := o.DecryptString(_secret, _expectAESCiphertext)
+	dec, err := o.Decrypt(_secret, _expectAESCiphertext)
 	if err != nil {
 		panic(err)
 	}
@@ -85,7 +85,7 @@ func TestTextDecryptAES(t *testing.T) {
 func encryptText(plaintext, passphrase []byte) ([]byte, error) {
 	o := aes256cbc.New()
 
-	return o.EncryptString(passphrase, plaintext)
+	return o.Encrypt(passphrase, plaintext)
 }
 
 func randomBytes(n int) []byte {
@@ -186,7 +186,7 @@ func BenchmarkEncryptText(b *testing.B) {
 func BenchmarkDecryptText(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		o := aes256cbc.New()
-		_, err := o.DecryptString(_secret, _expectAESCiphertext)
+		_, err := o.Decrypt(_secret, _expectAESCiphertext)
 		if err != nil {
 			panic(err)
 		}

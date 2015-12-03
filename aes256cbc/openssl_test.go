@@ -16,7 +16,7 @@ func TestDecryptFromString(t *testing.T) {
 
 	o := New()
 
-	data, err := o.DecryptString(passphrase, opensslEncrypted)
+	data, err := o.Decrypt(passphrase, opensslEncrypted)
 
 	if err != nil {
 		t.Fatalf("Test errored: %s", err)
@@ -33,12 +33,12 @@ func TestEncryptToDecrypt(t *testing.T) {
 
 	o := New()
 
-	enc, err := o.EncryptString(passphrase, plaintext)
+	enc, err := o.Encrypt(passphrase, plaintext)
 	if err != nil {
 		t.Fatalf("Test errored at encrypt: %s", err)
 	}
 
-	dec, err := o.DecryptString(passphrase, enc)
+	dec, err := o.Decrypt(passphrase, enc)
 	if err != nil {
 		t.Fatalf("Test errored at decrypt: %s", err)
 	}
@@ -54,7 +54,7 @@ func TestEncryptToOpenSSL(t *testing.T) {
 
 	o := New()
 
-	enc, err := o.EncryptString(passphrase, plaintext)
+	enc, err := o.Encrypt(passphrase, plaintext)
 	if err != nil {
 		t.Fatalf("Test errored at encrypt: %s", err)
 	}

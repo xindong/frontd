@@ -49,7 +49,7 @@ func decryptBackendAddr(line []byte) ([]byte, error) {
 		return addr, nil
 	}
 	// Try to decrypt it (AES)
-	addr, err := _Aes256CBC.DecryptString(_SecretPassphase, line)
+	addr, err := _Aes256CBC.Decrypt(_SecretPassphase, line)
 	if err != nil {
 		return nil, err
 	}
