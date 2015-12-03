@@ -247,12 +247,30 @@ func BenchmarkNoHitLatency(b *testing.B) {
 }
 
 func BenchmarkEchoParallel(b *testing.B) {
-	if !reuseport.Available() {
-		return
-	}
+
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			TestEchoServer(&testing.T{})
+		}
+	})
+}
+
+func BenchmarkLatencyParallel(b *testing.B) {
+	cipherAddr, err := encryptText(_echoServerAddr, _secret)
+	if err != nil {
+		panic(err)
+	}
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			testProtocol(cipherAddr)
+		}
+	})
+}
+
+func BenchmarkNoHitLatencyParallel(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			TestProtocolDecrypt(&testing.T{})
 		}
 	})
 }
