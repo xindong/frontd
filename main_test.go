@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/hex"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"math/rand"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jbenet/go-reuseport"
 	"github.com/xindong/frontd/aes256cbc"
 )
 
@@ -22,6 +24,27 @@ var (
 	_secret              = []byte("p0S8rX680*48")
 	_defaultFrontdAddr   = "127.0.0.1:" + strconv.Itoa(_DefaultPort)
 )
+
+var (
+	reuseTest = flag.Bool("reuse", false, "test reuseport dialer")
+)
+
+func TestMain(m *testing.M) {
+	flag.Parse()
+	// start echo server
+	go servEcho()
+
+	// start listen
+	os.Setenv("SECRET", string(_secret))
+
+	go main()
+
+	rand.Seed(time.Now().UnixNano())
+
+	// TODO: better way to wait for server to start
+	time.Sleep(time.Second)
+	os.Exit(m.Run())
+}
 
 func servEcho() {
 	l, err := net.Listen("tcp", string(_echoServerAddr))
@@ -54,22 +77,6 @@ func servEcho() {
 			panic(err)
 		}(c)
 	}
-}
-
-func TestMain(m *testing.M) {
-	// start echo server
-	go servEcho()
-
-	// start listen
-	os.Setenv("SECRET", string(_secret))
-
-	go main()
-
-	rand.Seed(time.Now().UnixNano())
-
-	// TODO: better way to wait for server to start
-	time.Sleep(time.Second)
-	os.Exit(m.Run())
 }
 
 func TestTextDecryptAES(t *testing.T) {
@@ -125,7 +132,13 @@ func testEchoRound(conn net.Conn) {
 }
 
 func TestEchoServer(t *testing.T) {
-	conn, err := net.Dial("tcp", string(_echoServerAddr))
+	var conn net.Conn
+	var err error
+	if *reuseTest {
+		conn, err = reuseport.Dial("tcp", "127.0.0.1:0", string(_echoServerAddr))
+	} else {
+		conn, err = net.Dial("tcp", string(_echoServerAddr))
+	}
 	if err != nil {
 		panic(err)
 	}
@@ -139,7 +152,14 @@ func TestEchoServer(t *testing.T) {
 
 func testProtocol(cipherAddr []byte) {
 	// * test decryption
-	conn, err := net.Dial("tcp", _defaultFrontdAddr)
+	var conn net.Conn
+	var err error
+	if *reuseTest {
+		conn, err = reuseport.Dial("tcp", "127.0.0.1:0", _defaultFrontdAddr)
+	} else {
+		conn, err = net.Dial("tcp", _defaultFrontdAddr)
+	}
+
 	if err != nil {
 		panic(err)
 	}
@@ -216,6 +236,17 @@ func BenchmarkNoHitLatency(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		TestProtocolDecrypt(&testing.T{})
 	}
+}
+
+func BenchmarkEchoParallel(b *testing.B) {
+	if !reuseport.Available() {
+		return
+	}
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			TestEchoServer(&testing.T{})
+		}
+	})
 }
 
 // with echo server with random hanging
