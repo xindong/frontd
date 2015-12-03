@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/Luzifer/go-openssl"
 )
@@ -102,11 +103,25 @@ func ListenAndServe() {
 		log.Fatal(err)
 	}
 	defer l.Close()
+	var tempDelay time.Duration
 	for {
 		conn, err := l.Accept()
 		if err != nil {
+			if ne, ok := err.(net.Error); ok && ne.Temporary() {
+				if tempDelay == 0 {
+					tempDelay = 5 * time.Millisecond
+				} else {
+					tempDelay *= 2
+				}
+				if max := 1 * time.Second; tempDelay > max {
+					tempDelay = max
+				}
+				time.Sleep(tempDelay)
+				continue
+			}
 			log.Fatal(err)
 		}
+		tempDelay = 0
 		go handleConn(conn)
 	}
 }
