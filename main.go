@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Luzifer/go-openssl"
+	"github.com/xindong/frontd/aes256cbc"
 )
 
 const (
@@ -25,8 +25,8 @@ const (
 )
 
 var (
-	_SecretPassphase string
-	_OpenSSL         = openssl.New()
+	_SecretPassphase []byte
+	_Aes256CBC       = aes256cbc.New()
 )
 
 var (
@@ -35,13 +35,13 @@ var (
 	_BufioReaderPool       sync.Pool
 )
 
-type backendAddrMap map[string]string
+type backendAddrMap map[string][]byte
 
 func init() {
 	_BackendAddrCache.Store(make(backendAddrMap))
 }
 
-func decryptBackendAddr(line []byte) (string, error) {
+func decryptBackendAddr(line []byte) ([]byte, error) {
 	// Try to check cache
 	m1 := _BackendAddrCache.Load().(backendAddrMap)
 	addr, ok := m1[string(line)]
@@ -49,16 +49,16 @@ func decryptBackendAddr(line []byte) (string, error) {
 		return addr, nil
 	}
 	// Try to decrypt it (AES)
-	plaintext, err := _OpenSSL.DecryptString(_SecretPassphase, string(line))
+	addr, err := _Aes256CBC.DecryptString(_SecretPassphase, line)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	addr = string(plaintext)
+
 	cacheBackendAddr(string(line), addr)
 	return addr, nil
 }
 
-func cacheBackendAddr(key, val string) {
+func cacheBackendAddr(key string, val []byte) {
 	_BackendAddrCacheMutex.Lock()
 	defer _BackendAddrCacheMutex.Unlock()
 
@@ -92,7 +92,7 @@ func main() {
 		syscall.Setrlimit(syscall.RLIMIT_NOFILE, &lim)
 	}
 
-	_SecretPassphase = os.Getenv("SECRET")
+	_SecretPassphase = []byte(os.Getenv("SECRET"))
 
 	listenAndServe()
 }
@@ -163,7 +163,7 @@ func handleConn(c net.Conn) {
 	// TODO: check if addr is allowed
 
 	// Build tunnel
-	backend, err := net.Dial("tcp", addr)
+	backend, err := net.Dial("tcp", string(addr))
 	if err != nil {
 		// handle error
 		switch err := err.(type) {

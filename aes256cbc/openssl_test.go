@@ -1,4 +1,4 @@
-package openssl
+package aes256cbc
 
 import (
 	"bytes"

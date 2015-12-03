@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/Luzifer/go-openssl"
+	"github.com/xindong/frontd/aes256cbc"
 )
 
 const (
@@ -72,7 +73,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestTextDecryptAES(t *testing.T) {
-	o := openssl.New()
+	o := aes256cbc.New()
 
 	dec, err := o.DecryptString(_secret, _expectAESCiphertext)
 	if err != nil {
@@ -84,7 +85,7 @@ func TestTextDecryptAES(t *testing.T) {
 }
 
 func encryptText(plaintext, passphrase string) ([]byte, error) {
-	o := openssl.New()
+	o := aes256cbc.New()
 
 	return o.EncryptString(passphrase, plaintext)
 }
