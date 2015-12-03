@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/xindong/frontd.svg?branch=master)](https://travis-ci.org/xindong/frontd) 
+[![Build Status](https://travis-ci.org/xindong/frontd.svg?branch=master)](https://travis-ci.org/xindong/frontd)
 [![Coverage Status](https://coveralls.io/repos/xindong/frontd/badge.svg?branch=master&service=github)](https://coveralls.io/github/xindong/frontd?branch=master)
 
 ### 简介
@@ -100,7 +100,9 @@ Pull request must pass:
 
 ### TODO
 
-* 支持 HTTP 反向代理 （使用 Header `X-AskForOrigin`）
-* 支持 binary protocol
-* 支持更多加密解密算法
-* 支持 consul 服务发现
+- [ ] Improve test coverage to over 90%
+- [ ] 支持 net/http/pprof
+- [ ] 支持 HTTP 反向代理 （使用 Header `X-AskForOrigin`）
+- [ ] 支持 binary protocol
+- [ ] 支持更多加密解密算法
+- [ ] 支持 consul 服务发现
