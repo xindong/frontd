@@ -14,6 +14,7 @@
 
 * 高性能、高并发
 * 无状态，可水平扩展
+* 同时支持TCP和HTTP两种模式
 * 安全（无明文后端地址及端口信息）
 	* 后端地址端口使用AES（aes-256-cbc）加密
 * 免配置免维护
@@ -76,11 +77,11 @@
 
 	* HTTP网关模式
 
-		在HTTP请求中加入Header `X-CipherOrigin` 并以后端地址密文为值
+		在HTTP请求中加入Header `X-Cipher-Origin` 并以后端地址密文为值
 			根据前例密文，HTTP请求应如：
 			> GET / HTTP/1.1
 			> Host: game101.xd.com
-			> X-CipherOrigin: U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=\n
+			> X-Cipher-Origin: U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=\n
 			> User-Agent: curl/7.43.0
 			> Accept: */*
 		_注1：默认支持最大HTTP尺寸为8k，如需更大可以启动时配置环境变量`MAX_HTTP_HEADER_SIZE`_
@@ -146,7 +147,7 @@ Pull request must pass:
 
 - [ ] Improve test coverage to over 90%
 - [x] 支持 net/http/pprof
-- [x] 支持 HTTP 反向代理 （使用 Header `X-AskForOrigin`）
+- [x] 支持 HTTP 反向代理 （使用 Header `X-Cipher-Origin`）
 - [ ] 支持 binary protocol
 - [ ] 支持更多加密解密算法
 - [ ] 支持 consul 服务发现
