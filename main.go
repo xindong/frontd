@@ -28,7 +28,7 @@ const (
 )
 
 var (
-	_cipherRequestHeader = []byte("X-CipherOrigin:")
+	_cipherRequestHeader = []byte("x-cipher-origin")
 	_maxHTTPHeaderSize   = 4096 * 2
 )
 
@@ -102,8 +102,8 @@ func main() {
 
 	_SecretPassphase = []byte(os.Getenv("SECRET"))
 
-	mhs := strconv.Atoi(os.Getenv("MAX_HTTP_HEADER_SIZE"))
-	if mhs > _maxHTTPHeaderSize {
+	mhs, err := strconv.Atoi(os.Getenv("MAX_HTTP_HEADER_SIZE"))
+	if err == nil && mhs > _maxHTTPHeaderSize {
 		_maxHTTPHeaderSize = mhs
 	}
 
@@ -187,12 +187,15 @@ func handleConn(c net.Conn) {
 				c.Write([]byte{0x07})
 				return
 			}
-			header.Write(line)
-			header.Write([]byte("\n"))
-			if bytes.HasPrefix(line, _cipherRequestHeader) {
-				cipherAddr = bytes.TrimSpace(line[len(_cipherRequestHeader):])
+
+			if bytes.HasPrefix(bytes.ToLower(line), _cipherRequestHeader) {
+				log.Println("HTTP3.4")
+				cipherAddr = bytes.TrimSpace(line[(len(_cipherRequestHeader) + 1):])
 				break
 			}
+
+			header.Write(line)
+			header.Write([]byte("\n"))
 
 			if header.Len() > _maxHTTPHeaderSize {
 				c.Write([]byte{0x08})

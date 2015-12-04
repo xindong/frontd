@@ -7,8 +7,10 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"math/rand"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
 	"testing"
@@ -20,6 +22,7 @@ import (
 
 var (
 	_echoServerAddr      = []byte("127.0.0.1:62863")
+	_httpServerAddr      = []byte("127.0.0.1:62865")
 	_expectAESCiphertext = []byte("U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=")
 	_secret              = []byte("p0S8rX680*48")
 	_defaultFrontdAddr   = "127.0.0.1:" + strconv.Itoa(_DefaultPort)
@@ -46,6 +49,11 @@ func TestMain(m *testing.M) {
 	os.Setenv("SECRET", string(_secret))
 
 	go main()
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("OK"))
+	})
+	go http.ListenAndServe(string(_httpServerAddr), nil)
 
 	rand.Seed(time.Now().UnixNano())
 
@@ -84,18 +92,6 @@ func servEcho() {
 			}
 			panic(err)
 		}(c)
-	}
-}
-
-func TestTextDecryptAES(t *testing.T) {
-	o := aes256cbc.New()
-
-	dec, err := o.Decrypt(_secret, _expectAESCiphertext)
-	if err != nil {
-		panic(err)
-	}
-	if !bytes.Equal(dec, _echoServerAddr) {
-		panic(errors.New("not match"))
 	}
 }
 
@@ -139,25 +135,6 @@ func testEchoRound(conn net.Conn) {
 	}
 }
 
-func TestEchoServer(t *testing.T) {
-	var conn net.Conn
-	var err error
-	if *reuseTest {
-		conn, err = reuseport.Dial("tcp", "127.0.0.1:0", string(_echoServerAddr))
-	} else {
-		conn, err = net.Dial("tcp", string(_echoServerAddr))
-	}
-	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
-
-	n := rand.Int() % 10
-	for i := 0; i < n; i++ {
-		testEchoRound(conn)
-	}
-}
-
 func testProtocol(cipherAddr []byte) {
 	// * test decryption
 	var conn net.Conn
@@ -188,12 +165,64 @@ func testProtocol(cipherAddr []byte) {
 	}
 }
 
+func TestTextDecryptAES(t *testing.T) {
+	o := aes256cbc.New()
+
+	dec, err := o.Decrypt(_secret, _expectAESCiphertext)
+	if err != nil {
+		panic(err)
+	}
+	if !bytes.Equal(dec, _echoServerAddr) {
+		panic(errors.New("not match"))
+	}
+}
+
+func TestEchoServer(t *testing.T) {
+	var conn net.Conn
+	var err error
+	if *reuseTest {
+		conn, err = reuseport.Dial("tcp", "127.0.0.1:0", string(_echoServerAddr))
+	} else {
+		conn, err = net.Dial("tcp", string(_echoServerAddr))
+	}
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+
+	n := rand.Int() % 10
+	for i := 0; i < n; i++ {
+		testEchoRound(conn)
+	}
+}
+
 func TestProtocolDecrypt(*testing.T) {
 	b, err := encryptText(_echoServerAddr, _secret)
 	if err != nil {
 		panic(err)
 	}
 	testProtocol(b)
+}
+
+func TestHTTPServer(t *testing.T) {
+	cipherAddr, err := encryptText(_httpServerAddr, _secret)
+	if err != nil {
+		panic(err)
+	}
+
+	client := &http.Client{}
+	req, _ := http.NewRequest("GET", "http://"+string(_defaultFrontdAddr), nil)
+	req.Header.Set(string(_cipherRequestHeader), string(cipherAddr))
+	res, _ := client.Do(req)
+
+	b, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	if bytes.Compare(b, []byte("OK")) != 0 {
+		t.Fail()
+	}
 }
 
 // TODO: test decryption with extra bytes in packet and check data
