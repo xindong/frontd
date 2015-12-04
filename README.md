@@ -54,6 +54,8 @@
 | 0x02   | 无法连接后端服务器 |
 | 0x04   | 获取后端地址密文失败 |
 | 0x06   | 后端地址解密失败 |
+| 0x07   | HTTP后端地址解析失败 |
+| 0x08   | 没有后端地址的HTTP请求 |
 | 0x10   | 不被允许的IP地址 |
 
 
@@ -66,8 +68,23 @@
 	* 例：当后端地址为 `127.0.0.1:62863` 时，如 Passphrase=p0S8rX680*48 ，
 	密文结果应类似 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=` <br/>
 	_注：上述方式都会使用随机Salt——这也是建议的方式。其结果是每次加密得出的密文结果并不一样，但并不会影响解密_
-4. 客户端与网关建立连接后，将后端地址的密文文本加一个换行符发送给网关。建立连接。
-	* 根据前例： 应该发送 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=\n`
+4. `frontd` 同时支持多种连接建立方式
+	* TCP网关模式-1
+
+		客户端与网关建立连接后，将后端地址的密文文本加一个换行符发送给网关。建立连接。
+			根据前例密文： 应该发送 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=\n`
+
+	* HTTP网关模式
+
+		在HTTP请求中加入Header `X-CipherOrigin` 并以后端地址密文为值
+			根据前例密文，HTTP请求应如：
+			> GET / HTTP/1.1
+			> Host: game101.xd.com
+			> X-CipherOrigin: U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=\n
+			> User-Agent: curl/7.43.0
+			> Accept: */*
+		_注1：默认支持最大HTTP尺寸为8k，如需更大可以启动时配置环境变量`MAX_HTTP_HEADER_SIZE`_
+		_注2：HTTP网关模式并不会追加或修改 X-Forword-For 等Header_
 
 ### Benchmark 基准测试数据指标
 
@@ -128,8 +145,8 @@ Pull request must pass:
 ### TODO
 
 - [ ] Improve test coverage to over 90%
-- [ ] 支持 net/http/pprof
-- [ ] 支持 HTTP 反向代理 （使用 Header `X-AskForOrigin`）
+- [x] 支持 net/http/pprof
+- [x] 支持 HTTP 反向代理 （使用 Header `X-AskForOrigin`）
 - [ ] 支持 binary protocol
 - [ ] 支持更多加密解密算法
 - [ ] 支持 consul 服务发现

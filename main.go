@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"io"
 	"log"
 	"net"
@@ -24,6 +25,11 @@ const (
 	_MaxBackendAddrCacheCount = 1024 * 1024
 	_DefaultPort              = 4043
 	_MTU                      = 1500
+)
+
+var (
+	_cipherRequestHeader = []byte("X-CipherOrigin:")
+	_maxHTTPHeaderSize   = 4096 * 2
 )
 
 var (
@@ -96,6 +102,11 @@ func main() {
 
 	_SecretPassphase = []byte(os.Getenv("SECRET"))
 
+	mhs := strconv.Atoi(os.Getenv("MAX_HTTP_HEADER_SIZE"))
+	if mhs > _maxHTTPHeaderSize {
+		_maxHTTPHeaderSize = mhs
+	}
+
 	pprofPort, err := strconv.Atoi(os.Getenv("PPROF_PORT"))
 	if err == nil && pprofPort > 0 && pprofPort <= 65535 {
 		go func() {
@@ -162,8 +173,36 @@ func handleConn(c net.Conn) {
 		return
 	}
 
+	cipherAddr := line
+	var header *bytes.Buffer
+
+	// check if it's HTTP request
+	if bytes.Contains(line, []byte("HTTP")) {
+		header = bytes.NewBuffer(line)
+		header.Write([]byte("\n"))
+		for {
+			line, isPrefix, err := rdr.ReadLine()
+			if err != nil || isPrefix {
+				log.Println(err)
+				c.Write([]byte{0x07})
+				return
+			}
+			header.Write(line)
+			header.Write([]byte("\n"))
+			if bytes.HasPrefix(line, _cipherRequestHeader) {
+				cipherAddr = bytes.TrimSpace(line[len(_cipherRequestHeader):])
+				break
+			}
+
+			if header.Len() > _maxHTTPHeaderSize {
+				c.Write([]byte{0x08})
+				return
+			}
+		}
+	}
+
 	// Try to check cache
-	addr, err := decryptBackendAddr(line)
+	addr, err := decryptBackendAddr(cipherAddr)
 	if err != nil {
 		c.Write([]byte{0x06})
 		return
@@ -188,6 +227,11 @@ func handleConn(c net.Conn) {
 		return
 	}
 	defer backend.Close()
+
+	if header != nil {
+		header.WriteTo(backend)
+		// TODO: do we need to release this buffer?
+	}
 
 	// Start transfering data
 	go pipe(c, backend)
