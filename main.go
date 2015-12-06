@@ -29,6 +29,7 @@ const (
 
 var (
 	_cipherRequestHeader = []byte("x-cipher-origin")
+	_xxfRequestHeader    = []byte("x-forwarded-for")
 	_maxHTTPHeaderSize   = 4096 * 2
 )
 
@@ -178,6 +179,8 @@ func handleConn(c net.Conn) {
 
 	// check if it's HTTP request
 	if bytes.Contains(line, []byte("HTTP")) {
+		cipherAddr = []byte[]
+		hdrXxf = "X-Forwarded-For: " + ipAddrFromRemoteAddr(conn.RemoteAddr().String());
 		header = bytes.NewBuffer(line)
 		header.Write([]byte("\n"))
 		for {
@@ -189,13 +192,33 @@ func handleConn(c net.Conn) {
 			}
 
 			if bytes.HasPrefix(bytes.ToLower(line), _cipherRequestHeader) {
-				log.Println("HTTP3.4")
 				cipherAddr = bytes.TrimSpace(line[(len(_cipherRequestHeader) + 1):])
-				break
+				continue
+			}
+
+			if bytes.HasPrefix(bytes.ToLower(line), _xxfRequestHeader) {
+				hdrXxf = hdrXxf + "," + string(bytes.TrimSpace(line[(len(_xxfRequestHeader) + 1):]))
+				continue
+			}
+
+			if len(bytes.TrimSpace(line)) == 0 {
+				// end of HTTP header
+				if len(cipherAddr) == 0 {
+					c.Write([]byte{0x08})
+					return
+				}
+				if len(hdrXxf) == 0 {
+					header.Write([]bytehdrXxf))
+					header.Write([]byte("\n"))
+				}
+				header.Write(line)
+				header.Write([]byte("\n"))
+				break;
 			}
 
 			header.Write(line)
 			header.Write([]byte("\n"))
+
 
 			if header.Len() > _maxHTTPHeaderSize {
 				c.Write([]byte{0x08})
@@ -259,4 +282,14 @@ func pipe(dst io.Writer, src io.Reader) {
 		return
 	}
 	// log.Println("pipe:", n, err)
+}
+
+// Request.RemoteAddress contains port, which we want to remove i.e.:
+// "[::1]:58292" => "[::1]"
+func ipAddrFromRemoteAddr(s string) string {
+	idx := strings.LastIndex(s, ":")
+	if idx == -1 {
+		return s
+	}
+	return s[:idx]
 }
