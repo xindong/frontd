@@ -58,9 +58,11 @@ func decryptBackendAddr(line []byte) ([]byte, error) {
 	if ok {
 		return addr, nil
 	}
+
 	// Try to decrypt it (AES)
 	addr, err := _Aes256CBC.Decrypt(_SecretPassphase, line)
 	if err != nil {
+		panic(err)
 		return nil, err
 	}
 
@@ -193,7 +195,8 @@ func handleConn(c net.Conn) {
 			}
 
 			if bytes.HasPrefix(bytes.ToLower(line), _cipherRequestHeader) {
-				cipherAddr = bytes.TrimSpace(line[(len(_cipherRequestHeader) + 1):])
+				// copy instead of point
+				cipherAddr = []byte(string(bytes.TrimSpace(line[(len(_cipherRequestHeader) + 1):])))
 				continue
 			}
 

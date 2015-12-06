@@ -165,6 +165,30 @@ func testProtocol(cipherAddr []byte) {
 	}
 }
 
+func TestHTTPServer(t *testing.T) {
+	cipherAddr, err := encryptText(_httpServerAddr, _secret)
+	if err != nil {
+		panic(err)
+	}
+
+	client := &http.Client{}
+	req, _ := http.NewRequest("GET", "http://"+string(_defaultFrontdAddr), nil)
+	req.Header.Set(string(_cipherRequestHeader), string(cipherAddr))
+	res, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+
+	b, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	if bytes.Compare(b, []byte("OK")) != 0 {
+		t.Fail()
+	}
+}
+
 func TestTextDecryptAES(t *testing.T) {
 	o := aes256cbc.New()
 
@@ -202,30 +226,6 @@ func TestProtocolDecrypt(*testing.T) {
 		panic(err)
 	}
 	testProtocol(b)
-}
-
-func TestHTTPServer(t *testing.T) {
-	cipherAddr, err := encryptText(_httpServerAddr, _secret)
-	if err != nil {
-		panic(err)
-	}
-
-	client := &http.Client{}
-	req, _ := http.NewRequest("GET", "http://"+string(_defaultFrontdAddr), nil)
-	req.Header.Set(string(_cipherRequestHeader), string(cipherAddr))
-	res, err := client.Do(req)
-	if err != nil {
-		panic(err)
-	}
-
-	b, err := ioutil.ReadAll(res.Body)
-	if err != nil {
-		panic(err)
-	}
-
-	if bytes.Compare(b, []byte("OK")) != 0 {
-		t.Fail()
-	}
 }
 
 // TODO: test decryption with extra bytes in packet and check data
