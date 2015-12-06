@@ -213,7 +213,10 @@ func TestHTTPServer(t *testing.T) {
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", "http://"+string(_defaultFrontdAddr), nil)
 	req.Header.Set(string(_cipherRequestHeader), string(cipherAddr))
-	res, _ := client.Do(req)
+	res, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
 
 	b, err := ioutil.ReadAll(res.Body)
 	if err != nil {

@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"runtime"
 	"runtime/debug"
 	"strconv"
@@ -179,10 +180,10 @@ func handleConn(c net.Conn) {
 
 	// check if it's HTTP request
 	if bytes.Contains(line, []byte("HTTP")) {
-		cipherAddr = []byte[]
-		hdrXxf = "X-Forwarded-For: " + ipAddrFromRemoteAddr(conn.RemoteAddr().String());
+		hdrXxf := "X-Forwarded-For: " + ipAddrFromRemoteAddr(c.RemoteAddr().String());
 		header = bytes.NewBuffer(line)
 		header.Write([]byte("\n"))
+		cipherAddr = []byte{}
 		for {
 			line, isPrefix, err := rdr.ReadLine()
 			if err != nil || isPrefix {
@@ -208,7 +209,7 @@ func handleConn(c net.Conn) {
 					return
 				}
 				if len(hdrXxf) == 0 {
-					header.Write([]bytehdrXxf))
+					header.Write([]byte(hdrXxf))
 					header.Write([]byte("\n"))
 				}
 				header.Write(line)
