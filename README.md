@@ -85,7 +85,6 @@
 			> User-Agent: curl/7.43.0
 			> Accept: */*
 		_注1：默认支持最大HTTP尺寸为8k，如需更大可以启动时配置环境变量`MAX_HTTP_HEADER_SIZE`_
-		_注2：HTTP网关模式并不会追加或修改 X-Forword-For 等Header_
 
 ### Benchmark 基准测试数据指标
 
