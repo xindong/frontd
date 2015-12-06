@@ -228,6 +228,8 @@ func TestProtocolDecrypt(*testing.T) {
 	testProtocol(b)
 }
 
+// TODO: test x-forwarded-for
+
 // TODO: test decryption with extra bytes in packet and check data
 
 // TODO: test decryption with seperated packet simulate loss connection and check data
