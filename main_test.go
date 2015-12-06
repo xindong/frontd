@@ -52,6 +52,9 @@ func TestMain(m *testing.M) {
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("OK"))
+		if len(r.Header["X-Forwarded-For"]) > 0 {
+			w.Write([]byte(r.Header["X-Forwarded-For"][0]))
+		}
 	})
 	go http.ListenAndServe(string(_httpServerAddr), nil)
 
@@ -174,6 +177,7 @@ func TestHTTPServer(t *testing.T) {
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", "http://"+string(_defaultFrontdAddr), nil)
 	req.Header.Set(string(_cipherRequestHeader), string(cipherAddr))
+	req.Header.Set("X-Forwarded-For", "8.8.8.8, 8.8.4.4")
 	res, err := client.Do(req)
 	if err != nil {
 		panic(err)
@@ -184,7 +188,7 @@ func TestHTTPServer(t *testing.T) {
 		panic(err)
 	}
 
-	if bytes.Compare(b, []byte("OK")) != 0 {
+	if !bytes.HasPrefix(b, []byte("OK127.0.0.1")) {
 		t.Fail()
 	}
 }
@@ -228,7 +232,7 @@ func TestProtocolDecrypt(*testing.T) {
 	testProtocol(b)
 }
 
-// TODO: test x-forwarded-for
+// TODO: more test with and with out x-forwarded-for
 
 // TODO: test decryption with extra bytes in packet and check data
 

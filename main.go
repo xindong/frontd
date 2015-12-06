@@ -182,7 +182,7 @@ func handleConn(c net.Conn) {
 
 	// check if it's HTTP request
 	if bytes.Contains(line, []byte("HTTP")) {
-		hdrXxf := "X-Forwarded-For: " + ipAddrFromRemoteAddr(c.RemoteAddr().String());
+		hdrXff := "X-Forwarded-For: " + ipAddrFromRemoteAddr(c.RemoteAddr().String());
 		header = bytes.NewBuffer(line)
 		header.Write([]byte("\n"))
 		cipherAddr = []byte{}
@@ -201,7 +201,7 @@ func handleConn(c net.Conn) {
 			}
 
 			if bytes.HasPrefix(bytes.ToLower(line), _xxfRequestHeader) {
-				hdrXxf = hdrXxf + "," + string(bytes.TrimSpace(line[(len(_xxfRequestHeader) + 1):]))
+				hdrXff = hdrXff + ", " + string(bytes.TrimSpace(line[(len(_xxfRequestHeader) + 1):]))
 				continue
 			}
 
@@ -211,8 +211,8 @@ func handleConn(c net.Conn) {
 					c.Write([]byte{0x08})
 					return
 				}
-				if len(hdrXxf) == 0 {
-					header.Write([]byte(hdrXxf))
+				if len(hdrXff) > 0 {
+					header.Write([]byte(hdrXff))
 					header.Write([]byte("\n"))
 				}
 				header.Write(line)
