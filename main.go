@@ -8,10 +8,10 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strings"
 	"runtime"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -62,7 +62,6 @@ func decryptBackendAddr(line []byte) ([]byte, error) {
 	// Try to decrypt it (AES)
 	addr, err := _Aes256CBC.Decrypt(_SecretPassphase, line)
 	if err != nil {
-		panic(err)
 		return nil, err
 	}
 
@@ -182,7 +181,7 @@ func handleConn(c net.Conn) {
 
 	// check if it's HTTP request
 	if bytes.Contains(line, []byte("HTTP")) {
-		hdrXff := "X-Forwarded-For: " + ipAddrFromRemoteAddr(c.RemoteAddr().String());
+		hdrXff := "X-Forwarded-For: " + ipAddrFromRemoteAddr(c.RemoteAddr().String())
 		header = bytes.NewBuffer(line)
 		header.Write([]byte("\n"))
 		cipherAddr = []byte{}
@@ -201,7 +200,7 @@ func handleConn(c net.Conn) {
 			}
 
 			if bytes.HasPrefix(bytes.ToLower(line), _xxfRequestHeader) {
-				hdrXff = hdrXff + ", " + string(bytes.TrimSpace(line[(len(_xxfRequestHeader) + 1):]))
+				hdrXff = hdrXff + ", " + string(bytes.TrimSpace(line[(len(_xxfRequestHeader)+1):]))
 				continue
 			}
 
@@ -217,12 +216,11 @@ func handleConn(c net.Conn) {
 				}
 				header.Write(line)
 				header.Write([]byte("\n"))
-				break;
+				break
 			}
 
 			header.Write(line)
 			header.Write([]byte("\n"))
-
 
 			if header.Len() > _maxHTTPHeaderSize {
 				c.Write([]byte{0x08})
