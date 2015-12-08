@@ -290,7 +290,7 @@ func handleConn(c net.Conn) {
 	// TODO: check if addr is allowed
 
 	// Build tunnel
-	backend, err := net.DialTimeout("tcp", string(addr), 5*time.Second)
+	backend, err := net.DialTimeout("tcp", string(addr), time.Second*time.Duration(_BackendDialTimeout))
 	if err != nil {
 		// handle error
 		switch err := err.(type) {

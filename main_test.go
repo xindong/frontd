@@ -48,6 +48,7 @@ func TestMain(m *testing.M) {
 
 	// start listen
 	os.Setenv("SECRET", string(_secret))
+	os.Setenv("BACKEND_TIMEOUT", "1")
 
 	go main()
 
