@@ -46,6 +46,10 @@ var (
 	_BufioReaderPool       sync.Pool
 )
 
+var (
+	_BackendDialTimeout = 5
+)
+
 type backendAddrMap map[string][]byte
 
 func init() {
@@ -111,6 +115,11 @@ func main() {
 		_maxHTTPHeaderSize = mhs
 	}
 
+	bt, err := strconv.Atoi(os.Getenv("BACKEND_TIMEOUT"))
+	if err == nil && bt > 0 {
+		_BackendDialTimeout = bt
+	}
+
 	pprofPort, err := strconv.Atoi(os.Getenv("PPROF_PORT"))
 	if err == nil && pprofPort > 0 && pprofPort <= 65535 {
 		go func() {
@@ -174,13 +183,14 @@ func handleConn(c net.Conn) {
 	b, err := rdr.ReadByte()
 	if err != nil {
 		log.Println(err)
+		// TODO: how to test this? may never reached?
 		c.Write([]byte{0x03})
 		return
 	}
 	if b == byte(0x00) {
 		// binary protocol
 		blen, err := rdr.ReadByte()
-		if err != nil {
+		if err != nil || blen == 0 {
 			log.Println(err)
 			c.Write([]byte{0x03})
 			return
@@ -188,9 +198,11 @@ func handleConn(c net.Conn) {
 		p := make([]byte, blen)
 		n, err := io.ReadFull(rdr, p)
 		if n != int(blen) {
+			// TODO: how to test this?
 			c.Write([]byte{0x09})
 			return
 		}
+
 		// decrypt
 		addr, err = decryptBackendAddr(p)
 		if err != nil {
@@ -278,7 +290,7 @@ func handleConn(c net.Conn) {
 	// TODO: check if addr is allowed
 
 	// Build tunnel
-	backend, err := net.Dial("tcp", string(addr))
+	backend, err := net.DialTimeout("tcp", string(addr), 5*time.Second)
 	if err != nil {
 		// handle error
 		switch err := err.(type) {

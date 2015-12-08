@@ -22,6 +22,7 @@ import (
 
 var (
 	_echoServerAddr      = []byte("127.0.0.1:62863")
+	_blackHoleServerAddr = []byte("127.0.0.1:62864")
 	_httpServerAddr      = []byte("127.0.0.1:62865")
 	_expectAESCiphertext = []byte("U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=")
 	_secret              = []byte("p0S8rX680*48")
@@ -138,7 +139,7 @@ func testEchoRound(conn net.Conn) {
 	}
 }
 
-func testProtocol(cipherAddr []byte) {
+func testProtocol(cipherAddr, expected []byte) {
 	// * test decryption
 	var conn net.Conn
 	var err error
@@ -156,6 +157,20 @@ func testProtocol(cipherAddr []byte) {
 	_, err = conn.Write(cipherAddr)
 	if err != nil {
 		panic(err)
+	}
+
+	if expected != nil {
+		buf := make([]byte, len(expected))
+		n, err := io.ReadFull(conn, buf)
+		if err != nil && err != io.EOF {
+			panic(err)
+		}
+		if !bytes.Equal(expected, buf[:n]) {
+			fmt.Println(buf[:n])
+			fmt.Println(string(buf[:n]))
+			panic("expected reply not matched")
+		}
+		return
 	}
 
 	for i := 0; i < 5; i++ {
@@ -224,7 +239,7 @@ func TestProtocolDecrypt(*testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	testProtocol(append(b, '\n'))
+	testProtocol(append(b, '\n'), nil)
 }
 
 // TestBinaryProtocolDecrypt
@@ -234,7 +249,35 @@ func TestBinaryProtocolDecrypt(*testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	testProtocol(append(append([]byte{0}, byte(len(b))), b...))
+	testProtocol(append(append([]byte{0}, byte(len(b))), b...), nil)
+}
+
+func TestBackendError(*testing.T) {
+	b, err := encryptText(_blackHoleServerAddr, _secret)
+	if err != nil {
+		panic(err)
+	}
+	testProtocol(append(b, '\n'), []byte{2})
+}
+
+func TestBackendBinEmptyCipherReadErr(*testing.T) {
+	testProtocol([]byte{0, 0}, []byte{3})
+}
+
+func TestBackendBinCipherDecryptErr(*testing.T) {
+	testProtocol([]byte{0, 1, 3}, []byte{6})
+}
+
+func TestDecryptError(*testing.T) {
+	testProtocol(append([]byte("2hws28"), '\n'), []byte{6})
+}
+
+func TestBackendTimeout(*testing.T) {
+	b, err := encryptText([]byte("8.8.8.8:80"), _secret)
+	if err != nil {
+		panic(err)
+	}
+	testProtocol(append(b, '\n'), []byte{1})
 }
 
 // TODO: more test with and with out x-forwarded-for
@@ -242,6 +285,8 @@ func TestBinaryProtocolDecrypt(*testing.T) {
 // TODO: test decryption with extra bytes in packet and check data
 
 // TODO: test decryption with seperated packet simulate loss connection and check data
+
+// benchmarks
 
 // TODO: benchmark 100, 1000 connect with 1k 10k 100k 1m data
 
@@ -279,7 +324,7 @@ func BenchmarkLatency(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		testProtocol(append(cipherAddr, '\n'))
+		testProtocol(append(cipherAddr, '\n'), nil)
 	}
 }
 
@@ -305,7 +350,7 @@ func BenchmarkLatencyParallel(b *testing.B) {
 	}
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			testProtocol(append(cipherAddr, '\n'))
+			testProtocol(append(cipherAddr, '\n'), nil)
 		}
 	})
 }

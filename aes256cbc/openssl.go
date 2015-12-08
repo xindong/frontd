@@ -16,7 +16,7 @@ import (
 // data can also get decrypted using OpenSSL CLI.
 // Code from http://dequeue.blogspot.de/2014/11/decrypting-something-encrypted-with.html
 type OpenSSL struct {
-	openSSLSaltHeader string
+	openSSLSaltHeader []byte
 }
 
 type openSSLCreds struct {
@@ -27,7 +27,7 @@ type openSSLCreds struct {
 // New instanciates and initializes a new OpenSSL encrypter
 func New() *OpenSSL {
 	return &OpenSSL{
-		openSSLSaltHeader: "Salted__", // OpenSSL salt is always this string + 8 bytes of actual salt
+		openSSLSaltHeader: []byte("Salted__"), // OpenSSL salt is always this string + 8 bytes of actual salt
 	}
 }
 
@@ -45,8 +45,11 @@ func (o *OpenSSL) DecryptString(passphrase, encryptedBase64String []byte) ([]byt
 
 // Decrypt encrypted data that was encrypted using OpenSSL and AES-256-CBC
 func (o *OpenSSL) Decrypt(passphrase, encrypted []byte) ([]byte, error) {
+	if len(encrypted) < aes.BlockSize {
+		return nil, fmt.Errorf("Cipher data length less than aes block size")
+	}
 	saltHeader := encrypted[:aes.BlockSize]
-	if string(saltHeader[:8]) != o.openSSLSaltHeader {
+	if !bytes.Equal(saltHeader[:8], o.openSSLSaltHeader) {
 		return nil, fmt.Errorf("Does not appear to have been encrypted with OpenSSL, salt header missing.")
 	}
 	salt := saltHeader[8:]
