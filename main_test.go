@@ -101,7 +101,7 @@ func servEcho() {
 func encryptText(plaintext, passphrase []byte) ([]byte, error) {
 	o := aes256cbc.New()
 
-	return o.Encrypt(passphrase, plaintext)
+	return o.EncryptString(passphrase, plaintext)
 }
 
 func randomBytes(n int) []byte {
@@ -196,7 +196,7 @@ func TestHTTPServer(t *testing.T) {
 func TestTextDecryptAES(t *testing.T) {
 	o := aes256cbc.New()
 
-	dec, err := o.Decrypt(_secret, _expectAESCiphertext)
+	dec, err := o.DecryptString(_secret, _expectAESCiphertext)
 	if err != nil {
 		panic(err)
 	}

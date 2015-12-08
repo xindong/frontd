@@ -192,7 +192,7 @@ func handleConn(c net.Conn) {
 			return
 		}
 		// decrypt
-		addr, err = decryptBackendAddr([]byte(base64.StdEncoding.EncodeToString(p)))
+		addr, err = decryptBackendAddr(p)
 		if err != nil {
 			c.Write([]byte{0x06})
 			return
@@ -261,7 +261,14 @@ func handleConn(c net.Conn) {
 		}
 
 		// Try to check cache
-		addr, err = decryptBackendAddr(cipherAddr)
+		dbuf := make([]byte, base64.StdEncoding.DecodedLen(len(cipherAddr)))
+		n, err := base64.StdEncoding.Decode(dbuf, cipherAddr)
+		if err != nil {
+			c.Write([]byte{0x06})
+			return
+		}
+
+		addr, err = decryptBackendAddr(dbuf[:n])
 		if err != nil {
 			c.Write([]byte{0x06})
 			return

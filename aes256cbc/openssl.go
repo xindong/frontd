@@ -31,15 +31,21 @@ func New() *OpenSSL {
 	}
 }
 
-// Decrypt a string that was encrypted using OpenSSL and AES-256-CBC
+// DecryptString a base64 encoded string that was encrypted
+// using OpenSSL and AES-256-CBC
 // also compatible with crptojs
-func (o *OpenSSL) Decrypt(passphrase, encryptedBase64String []byte) ([]byte, error) {
+func (o *OpenSSL) DecryptString(passphrase, encryptedBase64String []byte) ([]byte, error) {
 	dbuf := make([]byte, base64.StdEncoding.DecodedLen(len(encryptedBase64String)))
 	n, err := base64.StdEncoding.Decode(dbuf, encryptedBase64String)
 	if err != nil {
 		return nil, err
 	}
-	saltHeader := dbuf[:n][:aes.BlockSize]
+	return o.Decrypt(passphrase, dbuf[:n])
+}
+
+// Decrypt encrypted data that was encrypted using OpenSSL and AES-256-CBC
+func (o *OpenSSL) Decrypt(passphrase, encrypted []byte) ([]byte, error) {
+	saltHeader := encrypted[:aes.BlockSize]
 	if string(saltHeader[:8]) != o.openSSLSaltHeader {
 		return nil, fmt.Errorf("Does not appear to have been encrypted with OpenSSL, salt header missing.")
 	}
@@ -48,7 +54,7 @@ func (o *OpenSSL) Decrypt(passphrase, encryptedBase64String []byte) ([]byte, err
 	if err != nil {
 		return nil, err
 	}
-	return o.decrypt(creds.key, creds.iv, dbuf[:n])
+	return o.decrypt(creds.key, creds.iv, encrypted)
 }
 
 func (o *OpenSSL) decrypt(key, iv, data []byte) ([]byte, error) {
@@ -68,10 +74,10 @@ func (o *OpenSSL) decrypt(key, iv, data []byte) ([]byte, error) {
 	return out, nil
 }
 
-// Encrypt a string in a manner compatible to OpenSSL encryption
+// EncryptString in a manner compatible to OpenSSL encryption
 // functions using AES-256-CBC as encryption algorithm
 // also compatible with crptojs from https://code.google.com/p/crypto-js/
-func (o *OpenSSL) Encrypt(passphrase, plaintextString []byte) ([]byte, error) {
+func (o *OpenSSL) EncryptString(passphrase, plaintextString []byte) ([]byte, error) {
 	salt := make([]byte, 8) // Generate an 8 byte salt
 	_, err := io.ReadFull(rand.Reader, salt)
 	if err != nil {
