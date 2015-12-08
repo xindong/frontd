@@ -281,6 +281,10 @@ func TestBackendBinCipherDecryptErr(*testing.T) {
 
 func TestDecryptError(*testing.T) {
 	testProtocol(append([]byte("2hws28"), '\n'), []byte{6})
+
+	testProtocol(append([]byte("MjF3MjE="), '\n'), []byte{6})
+
+	testProtocol(append([]byte("MjF3MjFldWhmMjh1ZTRoMjhoMzJlZDAzdzIwOWUzOTAyZWZqY2Vpd2hudmNpdXJoZXZ1aWllaGY4MjExOXZma25p6IOh5qOuMjF3MjFldWhmMjh1ZTRoMjhoMzJlZDAzdzIwOWUzOTAyZWZqY2Vpd2hudmNpdXJoZXZ1aWllaGY4MjExOXZma25p6IOh5qOuMjF3MjFldWhmMjh1ZTRoMjhoMzJlZDAzdzIwOWUzOTAyZWZqY2Vpd2hudmNpdXJoZXZ1aWllaGY4MjExOXZma25p6IOh5qOuMjF3MjFldWhmMjh1ZTRoMjhoMzJlZDAzdzIwOWUzOTAyZWZqY2Vpd2hudmNpdXJoZXZ1aWllaGY4MjExOXZma25p6IOh5qOuDQoNCjIxdzIxZXVoZjI4dWU0aDI4aDMyZWQwM3cyMDllMzkwMmVmamNlaXdobnZjaXVyaGV2dWlpZWhmODIxMTl2ZmtuaeiDoeajrjIxdzIxZXVoZjI4dWU0aDI4aDMyZWQwM3cyMDllMzkwMmVmamNlaXdobnZjaXVyaGV2dWlpZWhmODIxMTl2ZmtuaeiDoeajrjIxdzIxZXVoZjI4dWU0aDI4aDMyZWQwM3cyMDllMzkwMmVmamNlaXdobnZjaXVyaGV2dWlpZWhmODIxMTl2ZmtuaeiDoeajrg0KDQoyMXcyMWV1aGYyOHVlNGgyOGgzMmVkMDN3MjA5ZTM5MDJlZmpjZWl3aG52Y2l1cmhldnVpaWVoZjgyMTE5dmZrbmnog6Hmo64"), '\n'), []byte{6})
 }
 
 func TestBackendTimeout(*testing.T) {

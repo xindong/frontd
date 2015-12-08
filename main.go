@@ -128,6 +128,8 @@ func main() {
 	}
 
 	listenAndServe()
+
+	log.Println("Exiting")
 }
 
 func listenAndServe() {
