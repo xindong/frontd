@@ -78,6 +78,18 @@ func (o *OpenSSL) decrypt(key, iv, data []byte) ([]byte, error) {
 // functions using AES-256-CBC as encryption algorithm
 // also compatible with crptojs from https://code.google.com/p/crypto-js/
 func (o *OpenSSL) EncryptString(passphrase, plaintextString []byte) ([]byte, error) {
+	enc, err := o.Encrypt(passphrase, plaintextString)
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(base64.StdEncoding.EncodeToString(enc)), nil
+}
+
+// Encrypt in a manner compatible to OpenSSL encryption
+// functions using AES-256-CBC as encryption algorithm
+// also compatible with crptojs from https://code.google.com/p/crypto-js/
+func (o *OpenSSL) Encrypt(passphrase, plaintextString []byte) ([]byte, error) {
 	salt := make([]byte, 8) // Generate an 8 byte salt
 	_, err := io.ReadFull(rand.Reader, salt)
 	if err != nil {
@@ -99,7 +111,7 @@ func (o *OpenSSL) EncryptString(passphrase, plaintextString []byte) ([]byte, err
 		return nil, err
 	}
 
-	return []byte(base64.StdEncoding.EncodeToString(enc)), nil
+	return enc, nil
 }
 
 func (o *OpenSSL) encrypt(key, iv, data []byte) ([]byte, error) {

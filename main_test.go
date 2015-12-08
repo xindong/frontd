@@ -158,11 +158,6 @@ func testProtocol(cipherAddr []byte) {
 		panic(err)
 	}
 
-	_, err = conn.Write([]byte("\n"))
-	if err != nil {
-		panic(err)
-	}
-
 	for i := 0; i < 5; i++ {
 		testEchoRound(conn)
 	}
@@ -229,7 +224,17 @@ func TestProtocolDecrypt(*testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	testProtocol(b)
+	testProtocol(append(b, '\n'))
+}
+
+// TestBinaryProtocolDecrypt
+func TestBinaryProtocolDecrypt(*testing.T) {
+	o := aes256cbc.New()
+	b, err := o.Encrypt(_secret, _echoServerAddr)
+	if err != nil {
+		panic(err)
+	}
+	testProtocol(append(append([]byte{0}, byte(len(b))), b...))
 }
 
 // TODO: more test with and with out x-forwarded-for
@@ -274,7 +279,7 @@ func BenchmarkLatency(b *testing.B) {
 	}
 
 	for i := 0; i < b.N; i++ {
-		testProtocol(cipherAddr)
+		testProtocol(append(cipherAddr, '\n'))
 	}
 }
 
@@ -300,7 +305,7 @@ func BenchmarkLatencyParallel(b *testing.B) {
 	}
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			testProtocol(cipherAddr)
+			testProtocol(append(cipherAddr, '\n'))
 		}
 	})
 }
