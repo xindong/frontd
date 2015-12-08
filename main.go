@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"encoding/base64"
 	"io"
 	"log"
 	"net"
@@ -157,10 +158,10 @@ func handleConn(c net.Conn) {
 		}
 	}()
 
-	// TODO: get rid of bufio.Reader
-	// TODO: use binary protocol if first byte is 0x00
+	var addr []byte
+	var header *bytes.Buffer
 
-	// Read first line
+	// TODO: maybe get rid of bufio.Reader for performance boost?
 	rdr, ok := _BufioReaderPool.Get().(*bufio.Reader)
 	if ok {
 		rdr.Reset(c)
@@ -169,71 +170,102 @@ func handleConn(c net.Conn) {
 	}
 	defer _BufioReaderPool.Put(rdr)
 
-	line, isPrefix, err := rdr.ReadLine()
-	if err != nil || isPrefix {
+	// use binary protocol if first byte is 0x00
+	b, err := rdr.ReadByte()
+	if err != nil {
 		log.Println(err)
-		c.Write([]byte{0x04})
+		c.Write([]byte{0x03})
 		return
 	}
+	if b == byte(0x00) {
+		// binary protocol
+		blen, err := rdr.ReadByte()
+		if err != nil {
+			log.Println(err)
+			c.Write([]byte{0x03})
+			return
+		}
+		p := make([]byte, blen)
+		n, err := io.ReadFull(rdr, p)
+		if n != int(blen) {
+			c.Write([]byte{0x09})
+			return
+		}
+		// decrypt
+		addr, err = decryptBackendAddr([]byte(base64.StdEncoding.EncodeToString(p)))
+		if err != nil {
+			c.Write([]byte{0x06})
+			return
+		}
+	} else {
+		rdr.UnreadByte()
 
-	cipherAddr := line
-	var header *bytes.Buffer
+		// Read first line
+		line, isPrefix, err := rdr.ReadLine()
+		if err != nil || isPrefix {
+			log.Println(err)
+			c.Write([]byte{0x04})
+			return
+		}
 
-	// check if it's HTTP request
-	if bytes.Contains(line, []byte("HTTP")) {
-		hdrXff := "X-Forwarded-For: " + ipAddrFromRemoteAddr(c.RemoteAddr().String())
-		header = bytes.NewBuffer(line)
-		header.Write([]byte("\n"))
-		cipherAddr = []byte{}
-		for {
-			line, isPrefix, err := rdr.ReadLine()
-			if err != nil || isPrefix {
-				log.Println(err)
-				c.Write([]byte{0x07})
-				return
-			}
+		cipherAddr := line
 
-			if bytes.HasPrefix(bytes.ToLower(line), _hdrCipherOrigin) {
-				// copy instead of point
-				cipherAddr = []byte(string(bytes.TrimSpace(line[(len(_hdrCipherOrigin) + 1):])))
-				continue
-			}
+		// check if it's HTTP request
+		if bytes.Contains(line, []byte("HTTP")) {
+			hdrXff := "X-Forwarded-For: " + ipAddrFromRemoteAddr(c.RemoteAddr().String())
+			header = bytes.NewBuffer(line)
+			header.Write([]byte("\n"))
+			cipherAddr = []byte{}
+			for {
+				line, isPrefix, err := rdr.ReadLine()
+				if err != nil || isPrefix {
+					log.Println(err)
+					c.Write([]byte{0x07})
+					return
+				}
 
-			if bytes.HasPrefix(bytes.ToLower(line), _hdrForwardedFor) {
-				hdrXff = hdrXff + ", " + string(bytes.TrimSpace(line[(len(_hdrForwardedFor)+1):]))
-				continue
-			}
+				if bytes.HasPrefix(bytes.ToLower(line), _hdrCipherOrigin) {
+					// copy instead of point
+					cipherAddr = []byte(string(bytes.TrimSpace(line[(len(_hdrCipherOrigin) + 1):])))
+					continue
+				}
 
-			if len(bytes.TrimSpace(line)) == 0 {
-				// end of HTTP header
-				if len(cipherAddr) == 0 {
+				if bytes.HasPrefix(bytes.ToLower(line), _hdrForwardedFor) {
+					hdrXff = hdrXff + ", " + string(bytes.TrimSpace(line[(len(_hdrForwardedFor)+1):]))
+					continue
+				}
+
+				if len(bytes.TrimSpace(line)) == 0 {
+					// end of HTTP header
+					if len(cipherAddr) == 0 {
+						c.Write([]byte{0x08})
+						return
+					}
+					if len(hdrXff) > 0 {
+						header.Write([]byte(hdrXff))
+						header.Write([]byte("\n"))
+					}
+					header.Write(line)
+					header.Write([]byte("\n"))
+					break
+				}
+
+				header.Write(line)
+				header.Write([]byte("\n"))
+
+				if header.Len() > _maxHTTPHeaderSize {
 					c.Write([]byte{0x08})
 					return
 				}
-				if len(hdrXff) > 0 {
-					header.Write([]byte(hdrXff))
-					header.Write([]byte("\n"))
-				}
-				header.Write(line)
-				header.Write([]byte("\n"))
-				break
-			}
-
-			header.Write(line)
-			header.Write([]byte("\n"))
-
-			if header.Len() > _maxHTTPHeaderSize {
-				c.Write([]byte{0x08})
-				return
 			}
 		}
-	}
 
-	// Try to check cache
-	addr, err := decryptBackendAddr(cipherAddr)
-	if err != nil {
-		c.Write([]byte{0x06})
-		return
+		// Try to check cache
+		addr, err = decryptBackendAddr(cipherAddr)
+		if err != nil {
+			c.Write([]byte{0x06})
+			return
+		}
 	}
 
 	// TODO: check if addr is allowed
