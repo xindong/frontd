@@ -176,7 +176,7 @@ func TestHTTPServer(t *testing.T) {
 
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", "http://"+string(_defaultFrontdAddr), nil)
-	req.Header.Set(string(_cipherRequestHeader), string(cipherAddr))
+	req.Header.Set(string(_hdrCipherOrigin), string(cipherAddr))
 	req.Header.Set("X-Forwarded-For", "8.8.8.8, 8.8.4.4")
 	res, err := client.Do(req)
 	if err != nil {
