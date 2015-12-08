@@ -49,6 +49,7 @@ func TestMain(m *testing.M) {
 	// start listen
 	os.Setenv("SECRET", string(_secret))
 	os.Setenv("BACKEND_TIMEOUT", "1")
+	os.Setenv("MAX_HTTP_HEADER_SIZE", "1024")
 
 	go main()
 
@@ -250,6 +251,9 @@ func TestProtocolDecrypt(*testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	testProtocol(append(b, '\n'), nil)
+
+	// test cached hitted
 	testProtocol(append(b, '\n'), nil)
 }
 
