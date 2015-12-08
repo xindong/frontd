@@ -72,10 +72,22 @@
 	密文结果应类似 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=` <br/>
 	_注：上述方式都会使用随机Salt——这也是建议的方式。其结果是每次加密得出的密文结果并不一样，但并不会影响解密_
 4. `frontd` 同时支持多种连接建立方式
-	* TCP网关模式-1
+	* TCP网关模式-Base64密文
+
+		客户端与网关建立连接后，先发送值为0x00的一个字节（byte），
+		再发送值为二进制密文长度的一个字节（byte）， 再将后端地址的二进制密文发送给网关。
+			根据前例密文，应该先发送如下的45个字节：
+			U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=\n
+
+	* TCP网关模式-二进制密文（更少通讯量）
 
 		客户端与网关建立连接后，将后端地址的密文文本加一个换行符发送给网关。建立连接。
-			根据前例密文： 应该发送 `U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=\n`
+			根据前例密文，应该先发送如下的34个字节：
+			0x00 0x20 0x53 0x61 0x6c 0x74 0x65 0x64
+			0x5f 0x5f 0x4a 0x20 0x9f 0x4e 0x40 0x92
+			0x93 0xff 0x21 0xc6 0x32 0xb4 0xbe 0xe5
+			0x2b 0x01 0x00 0x08 0xde 0xb6 0x89 0xa9
+			0xb5 0x0d
 
 	* HTTP网关模式
 
