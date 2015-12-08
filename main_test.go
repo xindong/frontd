@@ -50,6 +50,7 @@ func TestMain(m *testing.M) {
 	os.Setenv("SECRET", string(_secret))
 	os.Setenv("BACKEND_TIMEOUT", "1")
 	os.Setenv("MAX_HTTP_HEADER_SIZE", "1024")
+	os.Setenv("PPROF_PORT", "62866")
 
 	go main()
 
