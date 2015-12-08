@@ -29,9 +29,9 @@ const (
 )
 
 var (
-	_cipherRequestHeader = []byte("x-cipher-origin")
-	_xxfRequestHeader    = []byte("x-forwarded-for")
-	_maxHTTPHeaderSize   = 4096 * 2
+	_hdrCipherOrigin   = []byte("x-cipher-origin")
+	_hdrForwardedFor   = []byte("x-forwarded-for")
+	_maxHTTPHeaderSize = 4096 * 2
 )
 
 var (
@@ -193,14 +193,14 @@ func handleConn(c net.Conn) {
 				return
 			}
 
-			if bytes.HasPrefix(bytes.ToLower(line), _cipherRequestHeader) {
+			if bytes.HasPrefix(bytes.ToLower(line), _hdrCipherOrigin) {
 				// copy instead of point
-				cipherAddr = []byte(string(bytes.TrimSpace(line[(len(_cipherRequestHeader) + 1):])))
+				cipherAddr = []byte(string(bytes.TrimSpace(line[(len(_hdrCipherOrigin) + 1):])))
 				continue
 			}
 
-			if bytes.HasPrefix(bytes.ToLower(line), _xxfRequestHeader) {
-				hdrXff = hdrXff + ", " + string(bytes.TrimSpace(line[(len(_xxfRequestHeader)+1):]))
+			if bytes.HasPrefix(bytes.ToLower(line), _hdrForwardedFor) {
+				hdrXff = hdrXff + ", " + string(bytes.TrimSpace(line[(len(_hdrForwardedFor)+1):]))
 				continue
 			}
 
