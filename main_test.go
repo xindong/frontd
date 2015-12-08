@@ -178,16 +178,13 @@ func testProtocol(cipherAddr, expected []byte) {
 	}
 }
 
-func TestHTTPServer(t *testing.T) {
-	cipherAddr, err := encryptText(_httpServerAddr, _secret)
-	if err != nil {
-		panic(err)
-	}
+func testHTTPServer(hdrs map[string]string, expected string) {
 
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", "http://"+string(_defaultFrontdAddr), nil)
-	req.Header.Set(string(_hdrCipherOrigin), string(cipherAddr))
-	req.Header.Set("X-Forwarded-For", "8.8.8.8, 8.8.4.4")
+	for k, v := range hdrs {
+		req.Header.Set(k, v)
+	}
 	res, err := client.Do(req)
 	if err != nil {
 		panic(err)
@@ -199,8 +196,21 @@ func TestHTTPServer(t *testing.T) {
 	}
 
 	if !bytes.HasPrefix(b, []byte("OK127.0.0.1")) {
-		t.Fail()
+		panic(fmt.Errorf("http reply not match: %s", string(b)))
 	}
+}
+
+func TestHTTPServer(t *testing.T) {
+	cipherAddr, err := encryptText(_httpServerAddr, _secret)
+	if err != nil {
+		panic(err)
+	}
+
+	hdrs := map[string]string{
+		string(_hdrCipherOrigin): string(cipherAddr),
+		"X-Forwarded-For":        "8.8.8.8, 8.8.4.4",
+	}
+	testHTTPServer(hdrs, "OK127.0.0.1")
 }
 
 func TestTextDecryptAES(t *testing.T) {
@@ -279,6 +289,8 @@ func TestBackendTimeout(*testing.T) {
 	}
 	testProtocol(append(b, '\n'), []byte{1})
 }
+
+// TODO: test error 0x07 - 0x10
 
 // TODO: more test with and with out x-forwarded-for
 

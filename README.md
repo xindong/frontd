@@ -29,7 +29,7 @@
 * 加密后的地址信息密文可以存放在客户端或通过其他方式发送给客户端，但切忌将 Secret Passphrase 写入客户端代码！
 * 后端默认超时时间为5秒，如需延长，请配置环境变量 `BACKEND_TIMEOUT`（单位为秒）。
 	启动命令范例如：
-		`docker run -e "SECRET=SomePassphrase" -e "BACKEND_TIMEOUT=10" tomasen/frontd /go/bin/frontd`
+		docker run -e "SECRET=SomePassphrase" -e "BACKEND_TIMEOUT=10" tomasen/frontd /go/bin/frontd
 
 ### 编译
 
