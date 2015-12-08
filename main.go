@@ -33,6 +33,7 @@ var (
 	_hdrCipherOrigin   = []byte("x-cipher-origin")
 	_hdrForwardedFor   = []byte("x-forwarded-for")
 	_maxHTTPHeaderSize = 4096 * 2
+	_minHTTPHeaderSize = 32
 )
 
 var (
@@ -111,7 +112,7 @@ func main() {
 	_SecretPassphase = []byte(os.Getenv("SECRET"))
 
 	mhs, err := strconv.Atoi(os.Getenv("MAX_HTTP_HEADER_SIZE"))
-	if err == nil && mhs > _maxHTTPHeaderSize {
+	if err == nil && mhs > _minHTTPHeaderSize {
 		_maxHTTPHeaderSize = mhs
 	}
 
