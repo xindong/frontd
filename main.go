@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -53,66 +54,11 @@ var (
 
 type backendAddrMap map[string][]byte
 
-func init() {
-	_BackendAddrCache.Store(make(backendAddrMap))
-}
-
-func decryptBackendAddr(key []byte) ([]byte, error) {
-	// Try to check cache
-	m1 := _BackendAddrCache.Load().(backendAddrMap)
-	k1 := string(key)
-	addr, ok := m1[k1]
-	if ok {
-		return addr, nil
-	}
-
-	// Try to decrypt it (AES)
-	addr, err := _Aes256CBC.Decrypt(_SecretPassphase, key)
-	if err != nil {
-		return nil, err
-	}
-
-	cacheBackendAddr(k1, addr)
-	return addr, nil
-}
-
-func cacheBackendAddr(key string, val []byte) {
-	_BackendAddrCacheMutex.Lock()
-	defer _BackendAddrCacheMutex.Unlock()
-
-	m1 := _BackendAddrCache.Load().(backendAddrMap)
-	// double check
-	if _, ok := m1[key]; ok {
-		return
-	}
-
-	m2 := make(backendAddrMap)
-	// flush cache if there is way too many
-	if len(m1) < _MaxBackendAddrCacheCount {
-		// copy-on-write
-		for k, v := range m1 {
-			m2[k] = v // copy all data from the current object to the new one
-		}
-	}
-	m2[key] = val
-	_BackendAddrCache.Store(m2) // atomically replace the current object with the new one
-}
-
-func dialTimeout(network, address string, timeout time.Duration) (conn net.Conn, err error) {
-	m := int(timeout / time.Second)
-	for i := 0; i < m; i++ {
-		conn, err = net.DialTimeout(network, address, timeout)
-		if err == nil || !strings.HasSuffix(err.Error(), "can't assign requested address") {
-			break
-		}
-		time.Sleep(time.Second)
-	}
-	return
-}
-
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	os.Setenv("GOTRACEBACK", "crash")
+
+	_BackendAddrCache.Store(make(backendAddrMap))
 
 	var lim syscall.Rlimit
 	syscall.Getrlimit(syscall.RLIMIT_NOFILE, &lim)
@@ -175,6 +121,124 @@ func listenAndServe() {
 	}
 }
 
+func binaryProtocol(rdr *bufio.Reader, c net.Conn) (addr []byte, err error) {
+	// use binary protocol if first byte is 0x00
+	b, err := rdr.ReadByte()
+	if err != nil {
+		// TODO: how to cause error to test this?
+		c.Write([]byte{0x03})
+		return nil, err
+	}
+	if b == byte(0x00) {
+		// binary protocol
+		blen, err := rdr.ReadByte()
+		if err != nil || blen == 0 {
+			c.Write([]byte{0x03})
+			return nil, err
+		}
+		p := make([]byte, blen)
+		n, err := io.ReadFull(rdr, p)
+		if n != int(blen) {
+			// TODO: how to cause error to test this?
+			c.Write([]byte{0x09})
+			return nil, err
+		}
+
+		// decrypt
+		addr, err := backendAddrDecrypt(p)
+		if err != nil {
+			c.Write([]byte{0x06})
+			return nil, err
+		}
+
+		return addr, err
+	}
+
+	rdr.UnreadByte()
+	return nil, nil
+}
+
+func httpProtocol(rdr *bufio.Reader, c net.Conn, header *bytes.Buffer) (addr []byte, err error) {
+	hdrXff := "X-Forwarded-For: " + ipAddrFromRemoteAddr(c.RemoteAddr().String())
+
+	cipherAddr := []byte{}
+	for {
+		line, isPrefix, err := rdr.ReadLine()
+		if err != nil || isPrefix {
+			log.Println(err)
+			c.Write([]byte{0x07})
+			return nil, err
+		}
+
+		if bytes.HasPrefix(bytes.ToLower(line), _hdrCipherOrigin) {
+			// copy instead of point
+			cipherAddr = []byte(string(bytes.TrimSpace(line[(len(_hdrCipherOrigin) + 1):])))
+			continue
+		}
+
+		if bytes.HasPrefix(bytes.ToLower(line), _hdrForwardedFor) {
+			hdrXff = hdrXff + ", " + string(bytes.TrimSpace(line[(len(_hdrForwardedFor)+1):]))
+			continue
+		}
+
+		if len(bytes.TrimSpace(line)) == 0 {
+			// end of HTTP header
+			if len(cipherAddr) == 0 {
+				c.Write([]byte{0x08})
+				return nil, errors.New("empty http cipher address header")
+			}
+			if len(hdrXff) > 0 {
+				header.Write([]byte(hdrXff))
+				header.Write([]byte("\n"))
+			}
+			header.Write(line)
+			header.Write([]byte("\n"))
+			break
+		}
+
+		header.Write(line)
+		header.Write([]byte("\n"))
+
+		if header.Len() > _maxHTTPHeaderSize {
+			c.Write([]byte{0x08})
+			return nil, errors.New("http header size overflowed")
+		}
+	}
+
+	return cipherAddr, nil
+}
+
+// tunneling to backend
+func tunneling(addr string, rdr *bufio.Reader, c net.Conn, header *bytes.Buffer) error {
+	log.Println("tunneling", addr)
+	backend, err := dialTimeout("tcp", addr, time.Second*time.Duration(_BackendDialTimeout))
+	if err != nil {
+		// handle error
+		switch err := err.(type) {
+		case net.Error:
+			if err.Timeout() {
+				c.Write([]byte{0x01})
+				return err
+			}
+		}
+		c.Write([]byte{0x02})
+		return err
+	}
+	defer backend.Close()
+	log.Println("tunneling1")
+	if header != nil {
+		log.Println("tunneling1.1")
+		header.WriteTo(backend)
+		// TODO: release this buffer?
+	}
+	log.Println("tunneling2")
+	// Start transfering data
+	go pipe(c, backend)
+	pipe(backend, rdr)
+	log.Println("tunneling end")
+	return nil
+}
+
 func handleConn(c net.Conn) {
 	defer func() {
 		c.Close()
@@ -183,10 +247,6 @@ func handleConn(c net.Conn) {
 		}
 	}()
 
-	var addr []byte
-	var header *bytes.Buffer
-
-	// TODO: maybe get rid of bufio.Reader for performance boost?
 	rdr, ok := _BufioReaderPool.Get().(*bufio.Reader)
 	if ok {
 		rdr.Reset(c)
@@ -195,39 +255,14 @@ func handleConn(c net.Conn) {
 	}
 	defer _BufioReaderPool.Put(rdr)
 
-	// use binary protocol if first byte is 0x00
-	b, err := rdr.ReadByte()
+	addr, err := binaryProtocol(rdr, c)
 	if err != nil {
-		log.Println(err)
-		// TODO: how to test this? may never reached?
-		c.Write([]byte{0x03})
+		log.Println("x", err)
 		return
 	}
-	if b == byte(0x00) {
-		// binary protocol
-		blen, err := rdr.ReadByte()
-		if err != nil || blen == 0 {
-			log.Println(err)
-			c.Write([]byte{0x03})
-			return
-		}
-		p := make([]byte, blen)
-		n, err := io.ReadFull(rdr, p)
-		if n != int(blen) {
-			// TODO: how to test this?
-			c.Write([]byte{0x09})
-			return
-		}
 
-		// decrypt
-		addr, err = decryptBackendAddr(p)
-		if err != nil {
-			c.Write([]byte{0x06})
-			return
-		}
-	} else {
-		rdr.UnreadByte()
-
+	var header *bytes.Buffer
+	if addr == nil {
 		// Read first line
 		line, isPrefix, err := rdr.ReadLine()
 		if err != nil || isPrefix {
@@ -240,51 +275,13 @@ func handleConn(c net.Conn) {
 
 		// check if it's HTTP request
 		if bytes.Contains(line, []byte("HTTP")) {
-			hdrXff := "X-Forwarded-For: " + ipAddrFromRemoteAddr(c.RemoteAddr().String())
-			header = bytes.NewBuffer(line)
+			header := bytes.NewBuffer(line)
 			header.Write([]byte("\n"))
-			cipherAddr = []byte{}
-			for {
-				line, isPrefix, err := rdr.ReadLine()
-				if err != nil || isPrefix {
-					log.Println(err)
-					c.Write([]byte{0x07})
-					return
-				}
 
-				if bytes.HasPrefix(bytes.ToLower(line), _hdrCipherOrigin) {
-					// copy instead of point
-					cipherAddr = []byte(string(bytes.TrimSpace(line[(len(_hdrCipherOrigin) + 1):])))
-					continue
-				}
-
-				if bytes.HasPrefix(bytes.ToLower(line), _hdrForwardedFor) {
-					hdrXff = hdrXff + ", " + string(bytes.TrimSpace(line[(len(_hdrForwardedFor)+1):]))
-					continue
-				}
-
-				if len(bytes.TrimSpace(line)) == 0 {
-					// end of HTTP header
-					if len(cipherAddr) == 0 {
-						c.Write([]byte{0x08})
-						return
-					}
-					if len(hdrXff) > 0 {
-						header.Write([]byte(hdrXff))
-						header.Write([]byte("\n"))
-					}
-					header.Write(line)
-					header.Write([]byte("\n"))
-					break
-				}
-
-				header.Write(line)
-				header.Write([]byte("\n"))
-
-				if header.Len() > _maxHTTPHeaderSize {
-					c.Write([]byte{0x08})
-					return
-				}
+			cipherAddr, err = httpProtocol(rdr, c, header)
+			if err != nil {
+				log.Println(err)
+				return
 			}
 		}
 
@@ -296,7 +293,7 @@ func handleConn(c net.Conn) {
 			return
 		}
 
-		addr, err = decryptBackendAddr(dbuf[:n])
+		addr, err = backendAddrDecrypt(dbuf[:n])
 		if err != nil {
 			c.Write([]byte{0x06})
 			return
@@ -306,31 +303,70 @@ func handleConn(c net.Conn) {
 	// TODO: check if addr is allowed
 
 	// Build tunnel
-	backend, err := dialTimeout("tcp", string(addr), time.Second*time.Duration(_BackendDialTimeout))
-	if err != nil {
-		// handle error
-		switch err := err.(type) {
-		case net.Error:
-			if err.Timeout() {
-				c.Write([]byte{0x01})
-				log.Println(err)
-				return
-			}
+	tunneling(string(addr), rdr, c, header)
+}
+
+func dialTimeout(network, address string, timeout time.Duration) (conn net.Conn, err error) {
+	m := int(timeout / time.Second)
+	for i := 0; i < m; i++ {
+		conn, err = net.DialTimeout(network, address, timeout)
+		if err == nil || !strings.HasSuffix(err.Error(), "can't assign requested address") {
+			break
 		}
-		log.Println(err)
-		c.Write([]byte{0x02})
+		time.Sleep(time.Second)
+	}
+	return
+}
+
+func backendAddrDecrypt(key []byte) ([]byte, error) {
+	// Try to check cache
+	m1 := _BackendAddrCache.Load().(backendAddrMap)
+	k1 := string(key)
+	addr, ok := m1[k1]
+	if ok {
+		return addr, nil
+	}
+
+	// Try to decrypt it (AES)
+	addr, err := _Aes256CBC.Decrypt(_SecretPassphase, key)
+	if err != nil {
+		return nil, err
+	}
+
+	backendAddrList(k1, addr)
+	return addr, nil
+}
+
+func backendAddrList(key string, val []byte) {
+	_BackendAddrCacheMutex.Lock()
+	defer _BackendAddrCacheMutex.Unlock()
+
+	m1 := _BackendAddrCache.Load().(backendAddrMap)
+	// double check
+	if _, ok := m1[key]; ok {
 		return
 	}
-	defer backend.Close()
 
-	if header != nil {
-		header.WriteTo(backend)
-		// TODO: do we need to release this buffer?
+	m2 := make(backendAddrMap)
+	// flush cache if there is way too many
+	if len(m1) < _MaxBackendAddrCacheCount {
+		// copy-on-write
+		for k, v := range m1 {
+			m2[k] = v // copy all data from the current object to the new one
+		}
 	}
+	m2[key] = val
+	_BackendAddrCache.Store(m2) // atomically replace the current object with the new one
+}
 
-	// Start transfering data
-	go pipe(c, backend)
-	pipe(backend, rdr)
+// Request.RemoteAddress contains port, which we want to remove i.e.:
+// "[::1]:58292" => "[::1]"
+func ipAddrFromRemoteAddr(s string) string {
+	idx := strings.LastIndex(s, ":")
+	if idx == -1 {
+		return s
+	}
+	return s[:idx]
 }
 
 // pipe upstream and downstream
@@ -351,14 +387,4 @@ func pipe(dst io.Writer, src io.Reader) {
 		return
 	}
 	// log.Println("pipe:", n, err)
-}
-
-// Request.RemoteAddress contains port, which we want to remove i.e.:
-// "[::1]:58292" => "[::1]"
-func ipAddrFromRemoteAddr(s string) string {
-	idx := strings.LastIndex(s, ":")
-	if idx == -1 {
-		return s
-	}
-	return s[:idx]
 }
