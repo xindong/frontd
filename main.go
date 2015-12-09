@@ -121,6 +121,76 @@ func listenAndServe() {
 	}
 }
 
+func handleConn(c net.Conn) {
+	defer func() {
+		c.Close()
+		if r := recover(); r != nil {
+			log.Println("Recovered in", r, ":", string(debug.Stack()))
+		}
+	}()
+
+	rdr, ok := _BufioReaderPool.Get().(*bufio.Reader)
+	if ok {
+		rdr.Reset(c)
+	} else {
+		rdr = bufio.NewReader(c)
+	}
+	defer _BufioReaderPool.Put(rdr)
+
+	addr, err := binaryProtocol(rdr, c)
+	if err != nil {
+		log.Println("x", err)
+		return
+	}
+
+	var header *bytes.Buffer
+	if addr == nil {
+		// Read first line
+		line, isPrefix, err := rdr.ReadLine()
+		if err != nil || isPrefix {
+			log.Println(err)
+			c.Write([]byte{0x04})
+			return
+		}
+
+		cipherAddr := line
+
+		// check if it's HTTP request
+		if bytes.Contains(line, []byte("HTTP")) {
+			header = bytes.NewBuffer(line)
+			header.Write([]byte("\n"))
+
+			cipherAddr, err = httpProtocol(rdr, c, header)
+			if err != nil {
+				log.Println(err)
+				return
+			}
+		}
+
+		// Try to check cache
+		dbuf := make([]byte, base64.StdEncoding.DecodedLen(len(cipherAddr)))
+		n, err := base64.StdEncoding.Decode(dbuf, cipherAddr)
+		if err != nil {
+			c.Write([]byte{0x06})
+			return
+		}
+
+		addr, err = backendAddrDecrypt(dbuf[:n])
+		if err != nil {
+			c.Write([]byte{0x06})
+			return
+		}
+	}
+
+	// TODO: check if addr is allowed
+
+	// Build tunnel
+	err = tunneling(string(addr), rdr, c, header)
+	if err != nil {
+		log.Println(err)
+	}
+}
+
 func binaryProtocol(rdr *bufio.Reader, c net.Conn) (addr []byte, err error) {
 	// use binary protocol if first byte is 0x00
 	b, err := rdr.ReadByte()
@@ -161,7 +231,7 @@ func binaryProtocol(rdr *bufio.Reader, c net.Conn) (addr []byte, err error) {
 func httpProtocol(rdr *bufio.Reader, c net.Conn, header *bytes.Buffer) (addr []byte, err error) {
 	hdrXff := "X-Forwarded-For: " + ipAddrFromRemoteAddr(c.RemoteAddr().String())
 
-	cipherAddr := []byte{}
+	var cipherAddr []byte
 	for {
 		line, isPrefix, err := rdr.ReadLine()
 		if err != nil || isPrefix {
@@ -210,7 +280,6 @@ func httpProtocol(rdr *bufio.Reader, c net.Conn, header *bytes.Buffer) (addr []b
 
 // tunneling to backend
 func tunneling(addr string, rdr *bufio.Reader, c net.Conn, header *bytes.Buffer) error {
-	log.Println("tunneling", addr)
 	backend, err := dialTimeout("tcp", addr, time.Second*time.Duration(_BackendDialTimeout))
 	if err != nil {
 		// handle error
@@ -225,85 +294,16 @@ func tunneling(addr string, rdr *bufio.Reader, c net.Conn, header *bytes.Buffer)
 		return err
 	}
 	defer backend.Close()
-	log.Println("tunneling1")
+
 	if header != nil {
-		log.Println("tunneling1.1")
 		header.WriteTo(backend)
 		// TODO: release this buffer?
 	}
-	log.Println("tunneling2")
+
 	// Start transfering data
 	go pipe(c, backend)
 	pipe(backend, rdr)
-	log.Println("tunneling end")
 	return nil
-}
-
-func handleConn(c net.Conn) {
-	defer func() {
-		c.Close()
-		if r := recover(); r != nil {
-			log.Println("Recovered in", r, ":", string(debug.Stack()))
-		}
-	}()
-
-	rdr, ok := _BufioReaderPool.Get().(*bufio.Reader)
-	if ok {
-		rdr.Reset(c)
-	} else {
-		rdr = bufio.NewReader(c)
-	}
-	defer _BufioReaderPool.Put(rdr)
-
-	addr, err := binaryProtocol(rdr, c)
-	if err != nil {
-		log.Println("x", err)
-		return
-	}
-
-	var header *bytes.Buffer
-	if addr == nil {
-		// Read first line
-		line, isPrefix, err := rdr.ReadLine()
-		if err != nil || isPrefix {
-			log.Println(err)
-			c.Write([]byte{0x04})
-			return
-		}
-
-		cipherAddr := line
-
-		// check if it's HTTP request
-		if bytes.Contains(line, []byte("HTTP")) {
-			header := bytes.NewBuffer(line)
-			header.Write([]byte("\n"))
-
-			cipherAddr, err = httpProtocol(rdr, c, header)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-		}
-
-		// Try to check cache
-		dbuf := make([]byte, base64.StdEncoding.DecodedLen(len(cipherAddr)))
-		n, err := base64.StdEncoding.Decode(dbuf, cipherAddr)
-		if err != nil {
-			c.Write([]byte{0x06})
-			return
-		}
-
-		addr, err = backendAddrDecrypt(dbuf[:n])
-		if err != nil {
-			c.Write([]byte{0x06})
-			return
-		}
-	}
-
-	// TODO: check if addr is allowed
-
-	// Build tunnel
-	tunneling(string(addr), rdr, c, header)
 }
 
 func dialTimeout(network, address string, timeout time.Duration) (conn net.Conn, err error) {

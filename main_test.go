@@ -213,6 +213,7 @@ func TestHTTPServer(t *testing.T) {
 		string(_hdrCipherOrigin): string(cipherAddr),
 		"X-Forwarded-For":        "8.8.8.8, 8.8.4.4",
 	}
+
 	testHTTPServer(hdrs, "OK127.0.0.1")
 }
 
