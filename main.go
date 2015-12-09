@@ -98,6 +98,18 @@ func cacheBackendAddr(key string, val []byte) {
 	_BackendAddrCache.Store(m2) // atomically replace the current object with the new one
 }
 
+func dialTimeout(network, address string, timeout time.Duration) (conn net.Conn, err error) {
+	m := int(timeout / time.Second)
+	for i := 0; i < m; i++ {
+		conn, err = net.DialTimeout(network, address, timeout)
+		if err == nil || !strings.HasSuffix(err.Error(), "can't assign requested address") {
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	return
+}
+
 func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 	os.Setenv("GOTRACEBACK", "crash")
@@ -294,7 +306,7 @@ func handleConn(c net.Conn) {
 	// TODO: check if addr is allowed
 
 	// Build tunnel
-	backend, err := net.DialTimeout("tcp", string(addr), time.Second*time.Duration(_BackendDialTimeout))
+	backend, err := dialTimeout("tcp", string(addr), time.Second*time.Duration(_BackendDialTimeout))
 	if err != nil {
 		// handle error
 		switch err := err.(type) {

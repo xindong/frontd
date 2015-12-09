@@ -149,7 +149,7 @@ func testProtocol(cipherAddr, expected []byte) {
 	if *reuseTest {
 		conn, err = reuseport.Dial("tcp", "127.0.0.1:0", _defaultFrontdAddr)
 	} else {
-		conn, err = net.Dial("tcp", _defaultFrontdAddr)
+		conn, err = dialTimeout("tcp", _defaultFrontdAddr, time.Second*time.Duration(_BackendDialTimeout))
 	}
 
 	if err != nil {
@@ -234,7 +234,7 @@ func TestEchoServer(t *testing.T) {
 	if *reuseTest {
 		conn, err = reuseport.Dial("tcp", "127.0.0.1:0", string(_echoServerAddr))
 	} else {
-		conn, err = net.Dial("tcp", string(_echoServerAddr))
+		conn, err = dialTimeout("tcp", string(_echoServerAddr), time.Second*time.Duration(_BackendDialTimeout))
 	}
 	if err != nil {
 		panic(err)
