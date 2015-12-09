@@ -297,7 +297,6 @@ func tunneling(addr string, rdr *bufio.Reader, c net.Conn, header *bytes.Buffer)
 
 	if header != nil {
 		header.WriteTo(backend)
-		// TODO: release this buffer?
 	}
 
 	// Start transfering data
