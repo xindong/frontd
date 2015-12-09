@@ -137,7 +137,7 @@ func handleConn(c net.Conn) {
 	}
 	defer _BufioReaderPool.Put(rdr)
 
-	addr, err := binaryProtocol(rdr, c)
+	addr, err := handleBinaryHdr(rdr, c)
 	if err != nil {
 		log.Println("x", err)
 		return
@@ -160,14 +160,14 @@ func handleConn(c net.Conn) {
 			header = bytes.NewBuffer(line)
 			header.Write([]byte("\n"))
 
-			cipherAddr, err = httpProtocol(rdr, c, header)
+			cipherAddr, err = handleHTTPHdr(rdr, c, header)
 			if err != nil {
 				log.Println(err)
 				return
 			}
 		}
 
-		// Try to check cache
+		// base64 decode
 		dbuf := make([]byte, base64.StdEncoding.DecodedLen(len(cipherAddr)))
 		n, err := base64.StdEncoding.Decode(dbuf, cipherAddr)
 		if err != nil {
@@ -191,7 +191,7 @@ func handleConn(c net.Conn) {
 	}
 }
 
-func binaryProtocol(rdr *bufio.Reader, c net.Conn) (addr []byte, err error) {
+func handleBinaryHdr(rdr *bufio.Reader, c net.Conn) (addr []byte, err error) {
 	// use binary protocol if first byte is 0x00
 	b, err := rdr.ReadByte()
 	if err != nil {
@@ -228,7 +228,7 @@ func binaryProtocol(rdr *bufio.Reader, c net.Conn) (addr []byte, err error) {
 	return nil, nil
 }
 
-func httpProtocol(rdr *bufio.Reader, c net.Conn, header *bytes.Buffer) (addr []byte, err error) {
+func handleHTTPHdr(rdr *bufio.Reader, c net.Conn, header *bytes.Buffer) (addr []byte, err error) {
 	hdrXff := "X-Forwarded-For: " + ipAddrFromRemoteAddr(c.RemoteAddr().String())
 
 	var cipherAddr []byte
