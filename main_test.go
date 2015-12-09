@@ -326,7 +326,7 @@ func BenchmarkEncryptText(b *testing.B) {
 func BenchmarkDecryptText(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		o := aes256cbc.New()
-		_, err := o.Decrypt(_secret, _expectAESCiphertext)
+		_, err := o.DecryptString(_secret, _expectAESCiphertext)
 		if err != nil {
 			panic(err)
 		}

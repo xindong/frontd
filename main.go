@@ -57,21 +57,22 @@ func init() {
 	_BackendAddrCache.Store(make(backendAddrMap))
 }
 
-func decryptBackendAddr(line []byte) ([]byte, error) {
+func decryptBackendAddr(key []byte) ([]byte, error) {
 	// Try to check cache
 	m1 := _BackendAddrCache.Load().(backendAddrMap)
-	addr, ok := m1[string(line)]
+	k1 := string(key)
+	addr, ok := m1[k1]
 	if ok {
 		return addr, nil
 	}
 
 	// Try to decrypt it (AES)
-	addr, err := _Aes256CBC.Decrypt(_SecretPassphase, line)
+	addr, err := _Aes256CBC.Decrypt(_SecretPassphase, key)
 	if err != nil {
 		return nil, err
 	}
 
-	cacheBackendAddr(string(line), addr)
+	cacheBackendAddr(k1, addr)
 	return addr, nil
 }
 
