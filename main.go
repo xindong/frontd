@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -149,7 +150,7 @@ func handleConn(c net.Conn) {
 		line, isPrefix, err := rdr.ReadLine()
 		if err != nil || isPrefix {
 			log.Println(err)
-			c.Write([]byte{0x04})
+			writeErrCode(c, []byte("4104"), false)
 			return
 		}
 
@@ -171,13 +172,13 @@ func handleConn(c net.Conn) {
 		dbuf := make([]byte, base64.StdEncoding.DecodedLen(len(cipherAddr)))
 		n, err := base64.StdEncoding.Decode(dbuf, cipherAddr)
 		if err != nil {
-			c.Write([]byte{0x06})
+			writeErrCode(c, []byte("4106"), false)
 			return
 		}
 
 		addr, err = backendAddrDecrypt(dbuf[:n])
 		if err != nil {
-			c.Write([]byte{0x06})
+			writeErrCode(c, []byte("4106"), false)
 			return
 		}
 	}
@@ -191,33 +192,42 @@ func handleConn(c net.Conn) {
 	}
 }
 
+func writeErrCode(c net.Conn, errCode []byte, httpws bool) {
+	switch httpws {
+	case true:
+		fmt.Fprintf(c, "HTTP/1.1 %s Error\nConnection: Close", errCode)
+	default:
+		c.Write(errCode)
+	}
+}
+
 func handleBinaryHdr(rdr *bufio.Reader, c net.Conn) (addr []byte, err error) {
 	// use binary protocol if first byte is 0x00
 	b, err := rdr.ReadByte()
 	if err != nil {
 		// TODO: how to cause error to test this?
-		c.Write([]byte{0x03})
+		writeErrCode(c, []byte("4103"), false)
 		return nil, err
 	}
 	if b == byte(0x00) {
 		// binary protocol
 		blen, err := rdr.ReadByte()
 		if err != nil || blen == 0 {
-			c.Write([]byte{0x03})
+			writeErrCode(c, []byte("4103"), false)
 			return nil, err
 		}
 		p := make([]byte, blen)
 		n, err := io.ReadFull(rdr, p)
 		if n != int(blen) {
 			// TODO: how to cause error to test this?
-			c.Write([]byte{0x09})
+			writeErrCode(c, []byte("4109"), false)
 			return nil, err
 		}
 
 		// decrypt
 		addr, err := backendAddrDecrypt(p)
 		if err != nil {
-			c.Write([]byte{0x06})
+			writeErrCode(c, []byte("4106"), false)
 			return nil, err
 		}
 
@@ -236,7 +246,7 @@ func handleHTTPHdr(rdr *bufio.Reader, c net.Conn, header *bytes.Buffer) (addr []
 		line, isPrefix, err := rdr.ReadLine()
 		if err != nil || isPrefix {
 			log.Println(err)
-			c.Write([]byte{0x07})
+			writeErrCode(c, []byte("4107"), true)
 			return nil, err
 		}
 
@@ -254,7 +264,7 @@ func handleHTTPHdr(rdr *bufio.Reader, c net.Conn, header *bytes.Buffer) (addr []
 		if len(bytes.TrimSpace(line)) == 0 {
 			// end of HTTP header
 			if len(cipherAddr) == 0 {
-				c.Write([]byte{0x08})
+				writeErrCode(c, []byte("4108"), true)
 				return nil, errors.New("empty http cipher address header")
 			}
 			if len(hdrXff) > 0 {
@@ -270,7 +280,7 @@ func handleHTTPHdr(rdr *bufio.Reader, c net.Conn, header *bytes.Buffer) (addr []
 		header.Write([]byte("\n"))
 
 		if header.Len() > _maxHTTPHeaderSize {
-			c.Write([]byte{0x08})
+			writeErrCode(c, []byte("4108"), true)
 			return nil, errors.New("http header size overflowed")
 		}
 	}
@@ -286,11 +296,11 @@ func tunneling(addr string, rdr *bufio.Reader, c net.Conn, header *bytes.Buffer)
 		switch err := err.(type) {
 		case net.Error:
 			if err.Timeout() {
-				c.Write([]byte{0x01})
+				writeErrCode(c, []byte("4101"), false)
 				return err
 			}
 		}
-		c.Write([]byte{0x02})
+		writeErrCode(c, []byte("4102"), false)
 		return err
 	}
 	defer backend.Close()
@@ -309,7 +319,7 @@ func dialTimeout(network, address string, timeout time.Duration) (conn net.Conn,
 	m := int(timeout / time.Second)
 	for i := 0; i < m; i++ {
 		conn, err = net.DialTimeout(network, address, timeout)
-		if err == nil || !strings.HasSuffix(err.Error(), "can't assign requested address") {
+		if err == nil || !strings.Contains(err.Error(), "can't assign requested address") {
 			break
 		}
 		time.Sleep(time.Second)

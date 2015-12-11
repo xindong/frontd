@@ -171,6 +171,7 @@ func testProtocol(cipherAddr, expected []byte) {
 		if !bytes.Equal(expected, buf[:n]) {
 			fmt.Println(buf[:n])
 			fmt.Println(string(buf[:n]))
+			fmt.Println(string(expected))
 			panic("expected reply not matched")
 		}
 		return
@@ -274,23 +275,24 @@ func TestBackendError(*testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	testProtocol(append(b, '\n'), []byte{2})
+	testProtocol(append(b, '\n'), []byte("4102"))
 }
 
 func TestBackendBinEmptyCipherReadErr(*testing.T) {
-	testProtocol([]byte{0, 0}, []byte{3})
+	testProtocol([]byte{0, 0}, []byte("4103"))
 }
 
 func TestBackendBinCipherDecryptErr(*testing.T) {
-	testProtocol([]byte{0, 1, 3}, []byte{6})
+	testProtocol([]byte{0, 1, 3}, []byte("4106"))
 }
 
 func TestDecryptError(*testing.T) {
-	testProtocol(append([]byte("2hws28"), '\n'), []byte{6})
+	testProtocol(append([]byte("2hws28"), '\n'), []byte("4106"))
 
-	testProtocol(append([]byte("MjF3MjE="), '\n'), []byte{6})
+	testProtocol(append([]byte("MjF3MjE="), '\n'), []byte("4106"))
 
-	testProtocol(append([]byte("MjF3MjFldWhmMjh1ZTRoMjhoMzJlZDAzdzIwOWUzOTAyZWZqY2Vpd2hudmNpdXJoZXZ1aWllaGY4MjExOXZma25p6IOh5qOuMjF3MjFldWhmMjh1ZTRoMjhoMzJlZDAzdzIwOWUzOTAyZWZqY2Vpd2hudmNpdXJoZXZ1aWllaGY4MjExOXZma25p6IOh5qOuMjF3MjFldWhmMjh1ZTRoMjhoMzJlZDAzdzIwOWUzOTAyZWZqY2Vpd2hudmNpdXJoZXZ1aWllaGY4MjExOXZma25p6IOh5qOuMjF3MjFldWhmMjh1ZTRoMjhoMzJlZDAzdzIwOWUzOTAyZWZqY2Vpd2hudmNpdXJoZXZ1aWllaGY4MjExOXZma25p6IOh5qOuDQoNCjIxdzIxZXVoZjI4dWU0aDI4aDMyZWQwM3cyMDllMzkwMmVmamNlaXdobnZjaXVyaGV2dWlpZWhmODIxMTl2ZmtuaeiDoeajrjIxdzIxZXVoZjI4dWU0aDI4aDMyZWQwM3cyMDllMzkwMmVmamNlaXdobnZjaXVyaGV2dWlpZWhmODIxMTl2ZmtuaeiDoeajrjIxdzIxZXVoZjI4dWU0aDI4aDMyZWQwM3cyMDllMzkwMmVmamNlaXdobnZjaXVyaGV2dWlpZWhmODIxMTl2ZmtuaeiDoeajrg0KDQoyMXcyMWV1aGYyOHVlNGgyOGgzMmVkMDN3MjA5ZTM5MDJlZmpjZWl3aG52Y2l1cmhldnVpaWVoZjgyMTE5dmZrbmnog6Hmo64"), '\n'), []byte{6})
+	testProtocol(append([]byte("MjF3MjFldWhmMjh1ZTRoMjhoMzJlZDAzdzIwOWUzOTAyZWZqY2Vpd2hudmNpdXJoZXZ1aWllaGY4MjExOXZma25p6IOh5qOuMjF3MjFldWhmMjh1ZTRoMjhoMzJlZDAzdzIwOWUzOTAyZWZqY2Vpd2hudmNpdXJoZXZ1aWllaGY4MjExOXZma25p6IOh5qOuMjF3MjFldWhmMjh1ZTRoMjhoMzJlZDAzdzIwOWUzOTAyZWZqY2Vpd2hudmNpdXJoZXZ1aWllaGY4MjExOXZma25p6IOh5qOuMjF3MjFldWhmMjh1ZTRoMjhoMzJlZDAzdzIwOWUzOTAyZWZqY2Vpd2hudmNpdXJoZXZ1aWllaGY4MjExOXZma25p6IOh5qOuDQoNCjIxdzIxZXVoZjI4dWU0aDI4aDMyZWQwM3cyMDllMzkwMmVmamNlaXdobnZjaXVyaGV2dWlpZWhmODIxMTl2ZmtuaeiDoeajrjIxdzIxZXVoZjI4dWU0aDI4aDMyZWQwM3cyMDllMzkwMmVmamNlaXdobnZjaXVyaGV2dWlpZWhmODIxMTl2ZmtuaeiDoeajrjIxdzIxZXVoZjI4dWU0aDI4aDMyZWQwM3cyMDllMzkwMmVmamNlaXdobnZjaXVyaGV2dWlpZWhmODIxMTl2ZmtuaeiDoeajrg0KDQoyMXcyMWV1aGYyOHVlNGgyOGgzMmVkMDN3MjA5ZTM5MDJlZmpjZWl3aG52Y2l1cmhldnVpaWVoZjgyMTE5dmZrbmnog6Hmo64"), '\n'),
+		[]byte("4106"))
 }
 
 func TestBackendTimeout(*testing.T) {
@@ -298,7 +300,7 @@ func TestBackendTimeout(*testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	testProtocol(append(b, '\n'), []byte{1})
+	testProtocol(append(b, '\n'), []byte("4101"))
 }
 
 // TODO: test error 0x07 - 0x10
