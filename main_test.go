@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"math/rand"
 	"net"
 	"net/http"
@@ -18,12 +19,14 @@ import (
 
 	"github.com/xindong/frontd/aes256cbc"
 	"github.com/xindong/frontd/reuse"
+	"golang.org/x/net/websocket"
 )
 
 var (
 	_echoServerAddr      = []byte("127.0.0.1:62863")
 	_blackHoleServerAddr = []byte("127.0.0.1:62864")
 	_httpServerAddr      = []byte("127.0.0.1:62865")
+	_websocketServerAddr = []byte("127.0.0.1:62866")
 	_expectAESCiphertext = []byte("U2FsdGVkX19KIJ9OQJKT/yHGMrS+5SsBAAjetomptQ0=")
 	_secret              = []byte("p0S8rX680*48")
 	_defaultFrontdAddr   = "127.0.0.1:" + strconv.Itoa(_DefaultPort)
@@ -61,6 +64,11 @@ func TestMain(m *testing.M) {
 		}
 	})
 	go http.ListenAndServe(string(_httpServerAddr), nil)
+
+	http.Handle("/echo", websocket.Handler(func(ws *websocket.Conn) {
+		io.Copy(ws, ws)
+	}))
+	go http.ListenAndServe(string(_websocketServerAddr), nil)
 
 	rand.Seed(time.Now().UnixNano())
 
@@ -204,6 +212,39 @@ func testHTTPServer(hdrs map[string]string, expected string) {
 	}
 }
 
+func testWebSocketServer(hdrs map[string]string, expected string) {
+	origin := "http://127.0.0.1/"
+	url := "ws://" + string(_defaultFrontdAddr) + "/echo"
+	cfg, err := websocket.NewConfig(url, origin)
+	if err != nil {
+		panic(err)
+	}
+
+	for k, v := range hdrs {
+		cfg.Header.Set(k, v)
+	}
+
+	ws, err := websocket.DialConfig(cfg)
+	if err != nil {
+		panic(err)
+	}
+	if _, err := ws.Write([]byte(expected)); err != nil {
+		panic(err)
+	}
+	var msg = make([]byte, len(expected))
+	var n int
+	if n, err = ws.Read(msg); err != nil {
+		panic(err)
+	}
+
+	if expected != string(msg[:n]) {
+		log.Println(string(msg[:n]))
+		log.Println(expected)
+		panic(fmt.Errorf("websocket reply not match: %s", string(msg[:n])))
+	}
+
+}
+
 func TestHTTPServer(t *testing.T) {
 	cipherAddr, err := encryptText(_httpServerAddr, _secret)
 	if err != nil {
@@ -216,6 +257,8 @@ func TestHTTPServer(t *testing.T) {
 	}
 
 	testHTTPServer(hdrs, "OK127.0.0.1")
+
+	testWebSocketServer(hdrs, "OK127.0.0.1")
 }
 
 func TestTextDecryptAES(t *testing.T) {
