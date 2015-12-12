@@ -163,6 +163,7 @@ Pull request must pass:
 
 - [ ] Improve test coverage to over 90%
 - [ ] 支持 WebSocket
+- [ ] 提供高可用的健康监测接口
 - [ ] 队列化请求，并发整形
 - [ ] 支持更多加密解密算法
 - [ ] 支持 consul 服务发现
