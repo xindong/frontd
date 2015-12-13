@@ -49,7 +49,7 @@ func TestMain(m *testing.M) {
 	// start echo server
 	go servEcho()
 
-	// start listen
+	// start frontd
 	os.Setenv("SECRET", string(_secret))
 	os.Setenv("BACKEND_TIMEOUT", "1")
 	os.Setenv("MAX_HTTP_HEADER_SIZE", "1024")
@@ -57,6 +57,7 @@ func TestMain(m *testing.M) {
 
 	go main()
 
+	// start http server
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("OK"))
 		if len(r.Header["X-Forwarded-For"]) > 0 {
@@ -65,6 +66,7 @@ func TestMain(m *testing.M) {
 	})
 	go http.ListenAndServe(string(_httpServerAddr), nil)
 
+	// start webapp server
 	http.Handle("/echo", websocket.Handler(func(ws *websocket.Conn) {
 		io.Copy(ws, ws)
 	}))
@@ -72,7 +74,7 @@ func TestMain(m *testing.M) {
 
 	rand.Seed(time.Now().UnixNano())
 
-	// TODO: better way to wait for server to start
+	// wait for servers to start
 	time.Sleep(time.Second)
 	os.Exit(m.Run())
 }
@@ -110,84 +112,40 @@ func servEcho() {
 	}
 }
 
+// TestTextDecryptAES ---
+func TestTextDecryptAES(t *testing.T) {
+	o := aes256cbc.New()
+
+	dec, err := o.DecryptString(_secret, _expectAESCiphertext)
+	if err != nil {
+		panic(err)
+	}
+	if !bytes.Equal(dec, _echoServerAddr) {
+		panic(errors.New("not match"))
+	}
+}
+
+// TestHTTPServer ---
+func TestHTTPServer(t *testing.T) {
+	cipherAddr, err := encryptText(_httpServerAddr, _secret)
+	if err != nil {
+		panic(err)
+	}
+
+	hdrs := map[string]string{
+		string(_hdrCipherOrigin): string(cipherAddr),
+		"X-Forwarded-For":        "8.8.8.8, 8.8.4.4",
+	}
+
+	testHTTPServer(hdrs, "OK127.0.0.1")
+
+	testWebSocketServer(hdrs, "OK127.0.0.1")
+}
+
 func encryptText(plaintext, passphrase []byte) ([]byte, error) {
 	o := aes256cbc.New()
 
 	return o.EncryptString(passphrase, plaintext)
-}
-
-func randomBytes(n int) []byte {
-
-	b := make([]byte, n)
-	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
-	for i := 0; i < n; i++ {
-		b[i] = byte(rand.Int())
-	}
-
-	return b
-}
-
-func testEchoRound(conn net.Conn) {
-	conn.SetDeadline(time.Now().Add(time.Second * 10))
-
-	n := rand.Int()%2048 + 10
-	out := randomBytes(n)
-	n0, err := conn.Write(out)
-	if err != nil {
-		panic(err)
-	}
-
-	rcv := make([]byte, n)
-	n1, err := io.ReadFull(conn, rcv)
-	if err != nil && err != io.EOF {
-		panic(err)
-	}
-	if !bytes.Equal(out[:n0], rcv[:n1]) {
-		fmt.Println("out: ", n0, "in:", n1)
-
-		fmt.Println("out: ", hex.EncodeToString(out), "in:", hex.EncodeToString(rcv))
-		panic(errors.New("echo server reply is not match"))
-	}
-}
-
-func testProtocol(cipherAddr, expected []byte) {
-	// * test decryption
-	var conn net.Conn
-	var err error
-	if *reuseTest {
-		conn, err = reuseport.Dial("tcp", "127.0.0.1:0", _defaultFrontdAddr)
-	} else {
-		conn, err = dialTimeout("tcp", _defaultFrontdAddr, time.Second*time.Duration(_BackendDialTimeout))
-	}
-
-	if err != nil {
-		panic(err)
-	}
-	defer conn.Close()
-
-	_, err = conn.Write(cipherAddr)
-	if err != nil {
-		panic(err)
-	}
-
-	if expected != nil {
-		buf := make([]byte, len(expected))
-		n, err := io.ReadFull(conn, buf)
-		if err != nil && err != io.EOF {
-			panic(err)
-		}
-		if !bytes.Equal(expected, buf[:n]) {
-			fmt.Println(buf[:n])
-			fmt.Println(string(buf[:n]))
-			fmt.Println(string(expected))
-			panic("expected reply not matched")
-		}
-		return
-	}
-
-	for i := 0; i < 5; i++ {
-		testEchoRound(conn)
-	}
 }
 
 func testHTTPServer(hdrs map[string]string, expected string) {
@@ -245,34 +203,7 @@ func testWebSocketServer(hdrs map[string]string, expected string) {
 
 }
 
-func TestHTTPServer(t *testing.T) {
-	cipherAddr, err := encryptText(_httpServerAddr, _secret)
-	if err != nil {
-		panic(err)
-	}
-
-	hdrs := map[string]string{
-		string(_hdrCipherOrigin): string(cipherAddr),
-		"X-Forwarded-For":        "8.8.8.8, 8.8.4.4",
-	}
-
-	testHTTPServer(hdrs, "OK127.0.0.1")
-
-	testWebSocketServer(hdrs, "OK127.0.0.1")
-}
-
-func TestTextDecryptAES(t *testing.T) {
-	o := aes256cbc.New()
-
-	dec, err := o.DecryptString(_secret, _expectAESCiphertext)
-	if err != nil {
-		panic(err)
-	}
-	if !bytes.Equal(dec, _echoServerAddr) {
-		panic(errors.New("not match"))
-	}
-}
-
+// TestEchoServer ---
 func TestEchoServer(t *testing.T) {
 	var conn net.Conn
 	var err error
@@ -292,6 +223,41 @@ func TestEchoServer(t *testing.T) {
 	}
 }
 
+func testEchoRound(conn net.Conn) {
+	conn.SetDeadline(time.Now().Add(time.Second * 10))
+
+	n := rand.Int()%2048 + 10
+	out := randomBytes(n)
+	n0, err := conn.Write(out)
+	if err != nil {
+		panic(err)
+	}
+
+	rcv := make([]byte, n)
+	n1, err := io.ReadFull(conn, rcv)
+	if err != nil && err != io.EOF {
+		panic(err)
+	}
+	if !bytes.Equal(out[:n0], rcv[:n1]) {
+		fmt.Println("out: ", n0, "in:", n1)
+
+		fmt.Println("out: ", hex.EncodeToString(out), "in:", hex.EncodeToString(rcv))
+		panic(errors.New("echo server reply is not match"))
+	}
+}
+
+func randomBytes(n int) []byte {
+
+	b := make([]byte, n)
+	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
+	for i := 0; i < n; i++ {
+		b[i] = byte(rand.Int())
+	}
+
+	return b
+}
+
+// TestProtocolDecrypt ---
 func TestProtocolDecrypt(*testing.T) {
 	b, err := encryptText(_echoServerAddr, _secret)
 	if err != nil {
@@ -303,7 +269,47 @@ func TestProtocolDecrypt(*testing.T) {
 	testProtocol(append(b, '\n'), nil)
 }
 
-// TestBinaryProtocolDecrypt
+func testProtocol(cipherAddr, expected []byte) {
+	// * test decryption
+	var conn net.Conn
+	var err error
+	if *reuseTest {
+		conn, err = reuseport.Dial("tcp", "127.0.0.1:0", _defaultFrontdAddr)
+	} else {
+		conn, err = dialTimeout("tcp", _defaultFrontdAddr, time.Second*time.Duration(_BackendDialTimeout))
+	}
+
+	if err != nil {
+		panic(err)
+	}
+	defer conn.Close()
+
+	_, err = conn.Write(cipherAddr)
+	if err != nil {
+		panic(err)
+	}
+
+	if expected != nil {
+		buf := make([]byte, len(expected))
+		n, err := io.ReadFull(conn, buf)
+		if err != nil && err != io.EOF {
+			panic(err)
+		}
+		if !bytes.Equal(expected, buf[:n]) {
+			fmt.Println(buf[:n])
+			fmt.Println(string(buf[:n]))
+			fmt.Println(string(expected))
+			panic("expected reply not matched")
+		}
+		return
+	}
+
+	for i := 0; i < 5; i++ {
+		testEchoRound(conn)
+	}
+}
+
+// TestBinaryProtocolDecrypt ---
 func TestBinaryProtocolDecrypt(*testing.T) {
 	o := aes256cbc.New()
 	b, err := o.Encrypt(_secret, _echoServerAddr)
