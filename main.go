@@ -310,7 +310,7 @@ func tunneling(addr string, rdr *bufio.Reader, c net.Conn, header *bytes.Buffer)
 	}
 
 	// Start transfering data
-	ch := make(chan bool, 2)
+	ch := make(chan struct{}, 2)
 	go pipe(c, backend, ch)
 	go pipe(backend, rdr, ch)
 	<-ch
@@ -381,14 +381,14 @@ func ipAddrFromRemoteAddr(s string) string {
 }
 
 // pipe upstream and downstream
-func pipe(dst io.Writer, src io.Reader, ch chan bool) {
+func pipe(dst io.Writer, src io.Reader, ch chan struct{}) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Println("Recovered in", r, ":", string(debug.Stack()))
 		}
 	}()
 	defer func() {
-		ch <- true
+		ch <- struct{}{}
 	}()
 
 	_, err := io.Copy(dst, src)
