@@ -20,6 +20,8 @@ import (
 	"syscall"
 	"time"
 
+	_ "net/http/pprof"
+
 	"github.com/xindong/frontd/aes256cbc"
 )
 
