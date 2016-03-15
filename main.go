@@ -53,6 +53,7 @@ var (
 
 var (
 	_BackendDialTimeout = 5
+	_ConnReadTimeout    = time.Duration(300)
 )
 
 type backendAddrMap map[string][]byte
@@ -81,6 +82,11 @@ func main() {
 	bt, err := strconv.Atoi(os.Getenv("BACKEND_TIMEOUT"))
 	if err == nil && bt > 0 {
 		_BackendDialTimeout = bt
+	}
+
+	connReadTimeout, err := strconv.Atoi(os.Getenv("CONN_READ_TIMEOUT"))
+	if err == nil && connReadTimeout >= 0 {
+		_ConnReadTimeout = time.Duration(connReadTimeout)
 	}
 
 	pprofPort, err := strconv.Atoi(os.Getenv("PPROF_PORT"))
@@ -312,10 +318,9 @@ func tunneling(addr string, rdr *bufio.Reader, c net.Conn, header *bytes.Buffer)
 	}
 
 	// Start transfering data
-	ch := make(chan struct{}, 2)
-	go pipe(c, backend, ch)
-	go pipe(backend, rdr, ch)
-	<-ch
+	go pipe(c, backend, c, backend)
+	pipe(backend, rdr, backend, c)
+
 	return nil
 }
 
@@ -383,24 +388,34 @@ func ipAddrFromRemoteAddr(s string) string {
 }
 
 // pipe upstream and downstream
-func pipe(dst io.Writer, src io.Reader, ch chan struct{}) {
+func pipe(dst io.Writer, src io.Reader, dstconn, srcconn net.Conn) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Println("Recovered in", r, ":", string(debug.Stack()))
 		}
 	}()
-	defer func() {
-		ch <- struct{}{}
-	}()
 
-	_, err := io.Copy(dst, src)
+	// only close dst when done
+	defer dstconn.Close()
 
-	switch err {
-	case io.EOF:
-		err = nil
-		return
-	case nil:
-		return
+	buf := make([]byte, 32*1024)
+	for {
+		srcconn.SetReadDeadline(time.Now().Add(time.Second * _ConnReadTimeout))
+		nr, er := src.Read(buf)
+		if nr > 0 {
+			nw, ew := dst.Write(buf[0:nr])
+			if ew != nil {
+				break
+			}
+			if nr != nw {
+				break
+			}
+		}
+		if er == io.EOF {
+			break
+		}
+		if er != nil {
+			break
+		}
 	}
-	// log.Println("pipe:", n, err)
 }
