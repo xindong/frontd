@@ -84,7 +84,7 @@ func main() {
 
 	connReadTimeout, err := strconv.Atoi(os.Getenv("CONN_READ_TIMEOUT"))
 	if err == nil && connReadTimeout >= 0 {
-		_ConnReadTimeout = time.Duration(connReadTimeout)
+		_ConnReadTimeout = time.Second * time.Duration(connReadTimeout)
 	}
 
 	pprofPort, err := strconv.Atoi(os.Getenv("PPROF_PORT"))
@@ -392,7 +392,7 @@ func pipe(dst io.Writer, src io.Reader, dstconn, srcconn net.Conn) {
 
 	buf := make([]byte, 2*4096)
 	for {
-		srcconn.SetReadDeadline(time.Now().Add(time.Second * _ConnReadTimeout))
+		srcconn.SetReadDeadline(time.Now().Add(_ConnReadTimeout))
 		nr, er := src.Read(buf)
 		if nr > 0 {
 			nw, ew := dst.Write(buf[0:nr])
