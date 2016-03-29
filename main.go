@@ -48,7 +48,6 @@ var (
 var (
 	_BackendAddrCacheMutex sync.Mutex
 	_BackendAddrCache      atomic.Value
-	_BufioReaderPool       sync.Pool
 )
 
 var (
@@ -138,13 +137,7 @@ func handleConn(c net.Conn) {
 		}
 	}()
 
-	rdr, ok := _BufioReaderPool.Get().(*bufio.Reader)
-	if ok {
-		rdr.Reset(c)
-	} else {
-		rdr = bufio.NewReader(c)
-	}
-	defer _BufioReaderPool.Put(rdr)
+	rdr := bufio.NewReader(c)
 
 	addr, err := handleBinaryHdr(rdr, c)
 	if err != nil {
