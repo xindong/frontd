@@ -30,7 +30,6 @@ const (
 	_MaxOpenfile              = uint64(1024 * 1024 * 1024)
 	_MaxBackendAddrCacheCount = 1024 * 1024
 	_DefaultPort              = 4043
-	_MTU                      = 1500
 )
 
 var (
@@ -52,7 +51,7 @@ var (
 
 var (
 	_BackendDialTimeout = 5
-	_ConnReadTimeout    = time.Duration(300)
+	_ConnReadTimeout    = time.Second * 30
 )
 
 type backendAddrMap map[string][]byte
@@ -391,7 +390,7 @@ func pipe(dst io.Writer, src io.Reader, dstconn, srcconn net.Conn) {
 	// only close dst when done
 	defer dstconn.Close()
 
-	buf := make([]byte, 32*1024)
+	buf := make([]byte, 2*4096)
 	for {
 		srcconn.SetReadDeadline(time.Now().Add(time.Second * _ConnReadTimeout))
 		nr, er := src.Read(buf)
@@ -403,6 +402,9 @@ func pipe(dst io.Writer, src io.Reader, dstconn, srcconn net.Conn) {
 			if nr != nw {
 				break
 			}
+		}
+		if neterr, ok := er.(net.Error); ok && neterr.Timeout() {
+			continue
 		}
 		if er == io.EOF {
 			break
