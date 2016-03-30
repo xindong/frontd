@@ -29,7 +29,6 @@ const (
 	// max open file should at least be
 	_MaxOpenfile              = uint64(1024 * 1024 * 1024)
 	_MaxBackendAddrCacheCount = 1024 * 1024
-	_DefaultPort              = 4043
 )
 
 var (
@@ -50,6 +49,7 @@ var (
 )
 
 var (
+	_DefaultPort        = 4043
 	_BackendDialTimeout = 5
 	_ConnReadTimeout    = time.Second * 30
 )
@@ -85,6 +85,11 @@ func main() {
 	connReadTimeout, err := strconv.Atoi(os.Getenv("CONN_READ_TIMEOUT"))
 	if err == nil && connReadTimeout >= 0 {
 		_ConnReadTimeout = time.Second * time.Duration(connReadTimeout)
+	}
+
+	listenPort, err := strconv.Atoi(os.Getenv("LISTEN_PORT"))
+	if err == nil && listenPort > 0 && listenPort <= 65535 {
+		_DefaultPort = listenPort
 	}
 
 	pprofPort, err := strconv.Atoi(os.Getenv("PPROF_PORT"))
