@@ -141,6 +141,8 @@ func handleConn(c net.Conn) {
 		}
 	}()
 
+	c.SetReadDeadline(time.Now().Add(_ConnReadTimeout))
+
 	rdr := bufio.NewReader(c)
 
 	addr, err := handleBinaryHdr(rdr, c)
