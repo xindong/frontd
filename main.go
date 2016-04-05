@@ -145,7 +145,9 @@ func handleConn(c net.Conn) {
 
 	addr, err := handleBinaryHdr(rdr, c)
 	if err != nil {
-		log.Println("x", err)
+		if err != io.EOF {
+			log.Println("x", err)
+		}
 		return
 	}
 
